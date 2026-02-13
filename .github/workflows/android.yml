@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -15,36 +16,39 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: "stable"
           cache: true
 
-      - name: Ensure Android scaffold
+      # ✅ Create a fresh Flutter app scaffold every build
+      - name: Create clean Flutter Android scaffold
         run: |
-          flutter create --platforms=android --org com.darah .
-          python - <<'PY'
-          import pathlib, re
-          p = pathlib.Path('android/app/build.gradle')
-          if p.exists():
-            s = p.read_text(encoding='utf-8')
-            # Replace any minSdkVersion line (common template variants)
-            s2 = re.sub(r'minSdkVersion\s+\S+', 'minSdkVersion 24', s, count=1)
-            p.write_text(s2, encoding='utf-8')
-          PY
+          flutter --version
+          flutter create -t app --platforms=android dara_ci
 
-      - name: Flutter pub get
-        run: flutter pub get
+      # ✅ Copy your source into the clean scaffold
+      - name: Copy project files into scaffold
+        run: |
+          rsync -a ./lib dara_ci/
+          if [ -d "./assets" ]; then rsync -a ./assets dara_ci/; fi
+          cp ./pubspec.yaml dara_ci/
+          if [ -f "./pubspec.lock" ]; then cp ./pubspec.lock dara_ci/; fi
+          if [ -f "./analysis_options.yaml" ]; then cp ./analysis_options.yaml dara_ci/; fi
 
+      # ✅ Build APK from the clean scaffold
       - name: Build release APK
-        run: flutter build apk --release
+        working-directory: dara_ci
+        run: |
+          flutter pub get
+          flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: darah-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: dara_ci/build/app/outputs/flutter-apk/app-release.apk
