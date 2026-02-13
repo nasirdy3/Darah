@@ -342,7 +342,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                             final glow = (gs.phase == Phase.capture && p == gs.captureBy.opponent);
 
                             return AnimatedPositioned(
-                              key: ValueKey('t_$idx_${p.name}'),
+                              key: ValueKey('t_${idx}_${p.name}'),
                               duration: const Duration(milliseconds: 180),
                               curve: Curves.easeOutCubic,
                               left: left,
