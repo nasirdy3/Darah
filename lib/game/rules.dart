@@ -10,10 +10,10 @@ class Rules {
 
     // simulate
     gs.setCell(r, c, gs.turn);
-    final makes3 = DaraDetector.countExact3(gs, gs.turn) > 0;
+    final illegal = DaraDetector.has3Plus(gs, gs.turn);
     gs.setCell(r, c, Player.none);
 
-    return !makes3;
+    return !illegal;
   }
 
   static void applyPlace(GameState gs, int r, int c) {
@@ -43,18 +43,26 @@ class Rules {
     gs.setCell(fr, fc, Player.none);
     gs.setCell(tr, tc, gs.turn);
     final illegal4 = DaraDetector.has4Plus(gs, gs.turn);
+    final lineCount = DaraDetector.countExact3(gs, gs.turn);
     gs.setCell(tr, tc, Player.none);
     gs.setCell(fr, fc, gs.turn);
 
-    return !illegal4;
+    if (illegal4) return false;
+    if (lineCount > 1) return false; // cannot stack multiple Daras in one move
+
+    return true;
   }
 
   static void applyStep(GameState gs, int fr, int fc, int tr, int tc) {
+    final before = DaraDetector.exact3Lines(gs, gs.turn);
+
     gs.setCell(fr, fc, Player.none);
     gs.setCell(tr, tc, gs.turn);
 
-    final daraCount = DaraDetector.countExact3(gs, gs.turn);
-    if (daraCount > 0) {
+    final after = DaraDetector.exact3Lines(gs, gs.turn);
+    final newLines = after.difference(before);
+
+    if (newLines.isNotEmpty) {
       gs.phase = Phase.capture;
       gs.captureBy = gs.turn;
     } else {

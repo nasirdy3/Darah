@@ -1,45 +1,50 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
+import '../skins/skins.dart';
 
 class BoardPainter extends CustomPainter {
-  BoardPainter({required this.sizeN, required this.highlightCells, required this.selectedCell, required this.captureMode});
+  BoardPainter({
+    required this.sizeN,
+    required this.highlightCells,
+    required this.hintCells,
+    required this.selectedCell,
+    required this.captureMode,
+    required this.skin,
+    required this.aiFromCell,
+    required this.aiToCell,
+    required this.aiCaptureCell,
+  });
 
   final int sizeN;
   final Set<int> highlightCells;
+  final Set<int> hintCells;
   final int? selectedCell;
   final bool captureMode;
+  final BoardSkin skin;
+  final int? aiFromCell;
+  final int? aiToCell;
+  final int? aiCaptureCell;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    // Wood-like background
     final bg = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: const [Color(0xFF5A3A28), Color(0xFF3E271B), Color(0xFF2B1C14)],
+        colors: skin.baseGradient,
       ).createShader(rect);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(24)),
-      bg,
-    );
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(24)), bg);
 
-    // Inner frame
     final frame = Paint()
-      ..color = const Color(0xFF1A120D).withOpacity(0.55)
+      ..color = skin.frame.withOpacity(0.55)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect.deflate(6), const Radius.circular(20)),
-      frame,
-    );
+    canvas.drawRRect(RRect.fromRectAndRadius(rect.deflate(6), const Radius.circular(20)), frame);
 
-    // Grid
     final cell = size.width / sizeN;
-
     final gridPaint = Paint()
-      ..color = Colors.black.withOpacity(0.35)
+      ..color = skin.grid.withOpacity(0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
@@ -49,7 +54,19 @@ class BoardPainter extends CustomPainter {
       canvas.drawLine(Offset(0, p), Offset(size.width, p), gridPaint);
     }
 
-    // Pits
+    if (aiFromCell != null && aiToCell != null) {
+      final from = _cellCenter(aiFromCell!, cell);
+      final to = _cellCenter(aiToCell!, cell);
+      final trail = Paint()
+        ..shader = LinearGradient(
+          colors: [const Color(0xFFB2FF59).withOpacity(0.7), const Color(0xFF4DD0E1).withOpacity(0.7)],
+        ).createShader(Rect.fromPoints(from, to))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = cell * 0.08
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(from, to, trail);
+    }
+
     for (var r = 0; r < sizeN; r++) {
       for (var c = 0; c < sizeN; c++) {
         final cx = (c + 0.5) * cell;
@@ -67,55 +84,89 @@ class BoardPainter extends CustomPainter {
 
         final pit = Paint()
           ..shader = RadialGradient(
-            colors: [
-              const Color(0xFF2A1A12),
-              const Color(0xFF3A2418),
-              const Color(0xFF553624),
-            ],
-            stops: const [0.0, 0.65, 1.0],
+            colors: [skin.pitDark, skin.pitLight, skin.pitDark.withOpacity(0.8)],
+            stops: const [0.0, 0.7, 1.0],
           ).createShader(pitRect);
         canvas.drawCircle(Offset(cx, cy), radius * 0.95, pit);
 
-        // highlight
         final idx = r * sizeN + c;
+
         if (highlightCells.contains(idx)) {
           final hl = Paint()
-            ..color = (captureMode ? const Color(0xFFE53935) : const Color(0xFF00E5FF)).withOpacity(0.45)
+            ..color = (captureMode ? skin.capture : skin.highlight).withOpacity(0.55)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 3;
+            ..strokeWidth = 3.2;
           canvas.drawCircle(Offset(cx, cy), radius * 0.98, hl);
         }
 
-        // selected
+        if (hintCells.contains(idx)) {
+          final hl = Paint()
+            ..color = const Color(0xFF7DD9FF).withOpacity(0.65)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3.4;
+          canvas.drawCircle(Offset(cx, cy), radius * 1.02, hl);
+        }
+
         if (selectedCell == idx) {
           final sel = Paint()
-            ..color = const Color(0xFFFFD54F).withOpacity(0.55)
+            ..color = const Color(0xFFFFD54F).withOpacity(0.6)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 4;
-          canvas.drawCircle(Offset(cx, cy), radius * 1.05, sel);
+            ..strokeWidth = 4.2;
+          canvas.drawCircle(Offset(cx, cy), radius * 1.08, sel);
+        }
+
+        if (aiFromCell == idx) {
+          final ai = Paint()
+            ..color = const Color(0xFFB2FF59).withOpacity(0.75)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3.4;
+          canvas.drawCircle(Offset(cx, cy), radius * 1.1, ai);
+        }
+
+        if (aiToCell == idx) {
+          final ai = Paint()
+            ..color = const Color(0xFF4DD0E1).withOpacity(0.8)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3.6;
+          canvas.drawCircle(Offset(cx, cy), radius * 1.12, ai);
+        }
+
+        if (aiCaptureCell == idx) {
+          final ai = Paint()
+            ..color = const Color(0xFFFF6F60).withOpacity(0.85)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4.2;
+          canvas.drawCircle(Offset(cx, cy), radius * 1.14, ai);
         }
       }
     }
 
-    // subtle gloss
     final gloss = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Colors.white.withOpacity(0.10), Colors.transparent],
+        colors: [Colors.white.withOpacity(0.12), Colors.transparent],
       ).createShader(rect);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(24)),
-      gloss,
-    );
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(24)), gloss);
+  }
+
+  Offset _cellCenter(int idx, double cell) {
+    final r = idx ~/ sizeN;
+    final c = idx % sizeN;
+    return Offset((c + 0.5) * cell, (r + 0.5) * cell);
   }
 
   @override
   bool shouldRepaint(covariant BoardPainter oldDelegate) {
     return oldDelegate.sizeN != sizeN ||
         oldDelegate.highlightCells != highlightCells ||
+        oldDelegate.hintCells != hintCells ||
         oldDelegate.selectedCell != selectedCell ||
-        oldDelegate.captureMode != captureMode;
+        oldDelegate.captureMode != captureMode ||
+        oldDelegate.skin != skin ||
+        oldDelegate.aiFromCell != aiFromCell ||
+        oldDelegate.aiToCell != aiToCell ||
+        oldDelegate.aiCaptureCell != aiCaptureCell;
   }
 }
 

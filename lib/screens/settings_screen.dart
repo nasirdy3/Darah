@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../ai/ai_config.dart';
+import '../audio/audio_manager.dart';
+import '../skins/skins.dart';
+import '../state/profile_store.dart';
 import '../state/settings_store.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.settings});
+  const SettingsScreen({super.key, required this.settings, required this.profile});
   final SettingsStore settings;
+  final ProfileStore profile;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -15,6 +20,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool vsAi;
   late int aiLevel;
   late bool playerIsP1;
+  late bool soundOn;
+  late bool musicOn;
+  late bool hapticsOn;
+  late String boardSkinId;
+  late String seedSkinId;
+  late String aiTierId;
 
   @override
   void initState() {
@@ -23,6 +34,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     vsAi = widget.settings.vsAi;
     aiLevel = widget.settings.aiLevel;
     playerIsP1 = widget.settings.playerIsP1;
+    soundOn = widget.settings.soundOn;
+    musicOn = widget.settings.musicOn;
+    hapticsOn = widget.settings.hapticsOn;
+    boardSkinId = widget.profile.equippedBoard;
+    seedSkinId = widget.profile.equippedSeed;
+    aiTierId = widget.settings.aiTier;
   }
 
   Future<void> _save() async {
@@ -30,11 +47,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.settings.vsAi = vsAi;
     widget.settings.aiLevel = aiLevel;
     widget.settings.playerIsP1 = playerIsP1;
+    widget.settings.soundOn = soundOn;
+    widget.settings.musicOn = musicOn;
+    widget.settings.hapticsOn = hapticsOn;
+    widget.settings.aiTier = aiTierId;
     await widget.settings.save();
+
+    widget.profile.equippedBoard = boardSkinId;
+    widget.profile.equippedSeed = seedSkinId;
+    await widget.profile.save();
+
+    await AudioManager.instance.sync(widget.settings);
   }
 
   @override
   Widget build(BuildContext context) {
+    final unlockedBoards = boardSkins.where((s) => widget.profile.unlockedBoards.contains(s.id)).toList();
+    final unlockedSeeds = seedSkins.where((s) => widget.profile.unlockedSeeds.contains(s.id)).toList();
+    final tiers = AiTier.values;
+
+    if (unlockedBoards.isNotEmpty && !unlockedBoards.any((b) => b.id == boardSkinId)) {
+      boardSkinId = unlockedBoards.first.id;
+    }
+    if (unlockedSeeds.isNotEmpty && !unlockedSeeds.any((s) => s.id == seedSkinId)) {
+      seedSkinId = unlockedSeeds.first.id;
+    }
+    if (!widget.profile.unlockedAiTiers.contains(aiTierId)) {
+      aiTierId = 'amateur';
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -59,8 +100,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: DropdownButtonFormField<int>(
               value: boardSize,
               items: const [
-                DropdownMenuItem(value: 5, child: Text('5×5 (6 seeds/player)')),
-                DropdownMenuItem(value: 6, child: Text('6×6 (12 seeds/player)')),
+                DropdownMenuItem(value: 5, child: Text('5x5 (6 seeds/player)')),
+                DropdownMenuItem(value: 6, child: Text('6x6 (12 seeds/player)')),
               ],
               onChanged: (v) => setState(() => boardSize = v ?? 5),
             ),
@@ -74,7 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: vsAi,
                   onChanged: (v) => setState(() => vsAi = v),
                   title: const Text('Play vs AI'),
-                  subtitle: const Text('Turn off for pass-and-play (2 humans)'),
+                  subtitle: const Text('Turn off for local pass-and-play'),
                 ),
                 const SizedBox(height: 8),
                 ListTile(
@@ -98,18 +139,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: tiers.map((tier) {
+                    final unlocked = widget.profile.unlockedAiTiers.contains(tier.id);
+                    return ChoiceChip(
+                      label: Text(tier.label),
+                      selected: aiTierId == tier.id,
+                      onSelected: unlocked
+                          ? (v) => setState(() => aiTierId = tier.id)
+                          : null,
+                      avatar: unlocked ? null : const Icon(Icons.lock, size: 16),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
                 Text('Level: $aiLevel', style: const TextStyle(fontWeight: FontWeight.w700)),
                 Slider(
                   value: aiLevel.toDouble(),
                   min: 1,
-                  max: 100,
-                  divisions: 99,
+                  max: 300,
+                  divisions: 299,
                   label: '$aiLevel',
                   onChanged: vsAi ? (v) => setState(() => aiLevel = v.round()) : null,
                 ),
-                Opacity(
-                  opacity: 0.7,
-                  child: Text(_labelFor(aiLevel)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _Card(
+            title: 'Audio & Haptics',
+            child: Column(
+              children: [
+                SwitchListTile.adaptive(
+                  value: soundOn,
+                  onChanged: (v) => setState(() => soundOn = v),
+                  title: const Text('Sound Effects'),
+                ),
+                SwitchListTile.adaptive(
+                  value: musicOn,
+                  onChanged: (v) => setState(() => musicOn = v),
+                  title: const Text('Background Music'),
+                ),
+                SwitchListTile.adaptive(
+                  value: hapticsOn,
+                  onChanged: (v) => setState(() => hapticsOn = v),
+                  title: const Text('Haptic Feedback'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _Card(
+            title: 'Cosmetics',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: boardSkinId,
+                  items: unlockedBoards
+                      .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
+                      .toList(),
+                  onChanged: (v) => setState(() => boardSkinId = v ?? boardSkinId),
+                  decoration: const InputDecoration(labelText: 'Board Skin'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: seedSkinId,
+                  items: unlockedSeeds
+                      .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
+                      .toList(),
+                  onChanged: (v) => setState(() => seedSkinId = v ?? seedSkinId),
+                  decoration: const InputDecoration(labelText: 'Seed Skin'),
                 ),
               ],
             ),
@@ -129,15 +231,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
-  }
-
-  String _labelFor(int lvl) {
-    if (lvl <= 10) return 'Beginner';
-    if (lvl <= 20) return 'Amateur';
-    if (lvl <= 30) return 'Professional';
-    if (lvl <= 40) return 'Top';
-    if (lvl <= 50) return 'Super';
-    return 'Legend';
   }
 }
 

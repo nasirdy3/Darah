@@ -20,18 +20,18 @@ class AboutScreen extends StatelessWidget {
               'A Nigerian/African strategy board game.\n\n'
               'This app is offline-first and designed for smooth mobile play.\n\n'
               'Rules:\n'
-              '• Placement: cannot form 3-in-a-row\n'
-              '• Movement: orthogonal step\n'
-              '• Exact 3 forms Dara → capture one opponent seed\n'
-              '• 4+ in a row is illegal\n'
-              '• Multiple Daras in one move are allowed\n'
-              '• Win when opponent < 3 seeds or no legal moves',
+              '- Placement: cannot form 3-in-a-row.\n'
+              '- Movement: orthogonal step only.\n'
+              '- Dara: exact 3-in-row -> capture one opponent seed.\n'
+              '- 4+ in a row is illegal.\n'
+              '- Multiple Daras in one move are NOT allowed.\n'
+              '- Win when opponent has fewer than 3 seeds or no legal moves.',
             ),
             const SizedBox(height: 16),
             Opacity(
               opacity: 0.7,
               child: Text(
-                'Offline v1 • Flutter • Android build via GitHub Actions',
+                'Offline premium build. Flutter. Android.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

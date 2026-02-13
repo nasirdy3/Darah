@@ -1,45 +1,22 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:math';
 
 import '../game/state.dart';
 import '../game/types.dart';
+import 'ai_config.dart';
 import 'minimax_ab.dart';
+import 'transposition.dart';
+import 'zobrist.dart';
 
 class AIPlayer {
-  AIPlayer({required this.level});
-  final int level;
-
-  int _depthForLevel(int lvl, {required bool isPlacement}) {
-    // Placement has bigger branching; keep shallower.
-    if (isPlacement) {
-      if (lvl <= 10) return 1;
-      if (lvl <= 25) return 2;
-      if (lvl <= 50) return 3;
-      return 4;
-    }
-    if (lvl <= 10) return 2;
-    if (lvl <= 20) return 3;
-    if (lvl <= 35) return 4;
-    if (lvl <= 55) return 5;
-    if (lvl <= 80) return 6;
-    return 7;
-  }
-
-  int _timeForLevel(int lvl) {
-    // time budget in ms
-    if (lvl <= 10) return 150;
-    if (lvl <= 20) return 250;
-    if (lvl <= 35) return 450;
-    if (lvl <= 55) return 700;
-    if (lvl <= 80) return 1000;
-    return 1400;
-  }
+  AIPlayer({required this.profile});
+  final AiProfile profile;
 
   Future<Move?> chooseMove(GameState gs, Player me) async {
-    // Run in isolate to avoid UI jank
     final completer = Completer<Move?>();
     final rp = ReceivePort();
-    final args = _IsolateArgs(gs, me, level);
+    final args = _IsolateArgs(gs, me, profile);
 
     await Isolate.spawn(_isolateEntry, (rp.sendPort, args));
 
@@ -58,18 +35,32 @@ class AIPlayer {
     final args = payload.$2 as _IsolateArgs;
 
     final start = DateTime.now().millisecondsSinceEpoch;
-    final depth = AIPlayer(level: args.level)._depthForLevel(args.level, isPlacement: args.gs.phase == Phase.placement);
-    final timeMs = AIPlayer(level: args.level)._timeForLevel(args.level);
+    final profile = AiProfile(
+      tier: AiTierX.fromId(args.tierId),
+      level: args.level,
+      playerAggression: args.playerAggression,
+      playerHeat: args.playerHeat,
+      boardSize: args.boardSize,
+    );
+    final config = configFor(profile, isPlacement: args.gs.phase == Phase.placement);
 
-    // iterative deepening
+    final zobrist = Zobrist(args.gs.cfg.size);
+    final tt = TranspositionTable();
+    final rng = Random(args.seed);
+
     Move? best;
-    for (var d = 1; d <= depth; d++) {
+    for (var d = 1; d <= config.depth; d++) {
       final res = MinimaxAB.search(
         gs: args.gs,
         me: args.me,
         depth: d,
-        timeLimitMs: timeMs,
+        timeLimitMs: config.timeMs,
         startMs: start,
+        config: config,
+        zobrist: zobrist,
+        tt: tt,
+        rng: rng,
+        heatMap: args.playerHeat,
       );
       if (res.best != null) best = res.best;
       if (res.timeout) break;
@@ -80,8 +71,20 @@ class AIPlayer {
 }
 
 class _IsolateArgs {
-  _IsolateArgs(this.gs, this.me, this.level);
+  _IsolateArgs(this.gs, this.me, AiProfile profile)
+      : level = profile.level,
+        tierId = profile.tier.id,
+        playerAggression = profile.playerAggression,
+        playerHeat = profile.playerHeat,
+        boardSize = profile.boardSize,
+        seed = DateTime.now().microsecondsSinceEpoch;
+
   final GameState gs;
   final Player me;
   final int level;
+  final String tierId;
+  final double playerAggression;
+  final List<int> playerHeat;
+  final int boardSize;
+  final int seed;
 }
