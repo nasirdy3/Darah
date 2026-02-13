@@ -22,16 +22,14 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "stable"
+          channel: stable
           cache: true
 
-      # ✅ Create a fresh Flutter app scaffold every build
       - name: Create clean Flutter Android scaffold
         run: |
           flutter --version
           flutter create -t app --platforms=android dara_ci
 
-      # ✅ Copy your source into the clean scaffold
       - name: Copy project files into scaffold
         run: |
           rsync -a ./lib dara_ci/
@@ -40,7 +38,6 @@ jobs:
           if [ -f "./pubspec.lock" ]; then cp ./pubspec.lock dara_ci/; fi
           if [ -f "./analysis_options.yaml" ]; then cp ./analysis_options.yaml dara_ci/; fi
 
-      # ✅ Build APK from the clean scaffold
       - name: Build release APK
         working-directory: dara_ci
         run: |
