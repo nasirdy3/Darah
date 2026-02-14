@@ -61,12 +61,14 @@ class AiSearchConfig {
     required this.timeMs,
     required this.randomness,
     required this.aggressionBias,
+    required this.adaptiveBias,
   });
 
   final int depth;
   final int timeMs;
   final double randomness;
   final double aggressionBias;
+  final double adaptiveBias;
 }
 
 AiSearchConfig configFor(AiProfile profile, {required bool isPlacement}) {
@@ -117,10 +119,15 @@ AiSearchConfig configFor(AiProfile profile, {required bool isPlacement}) {
       ? profile.playerAggression
       : (0.35 + tier.index * 0.1).clamp(0.0, 1.0);
 
+  final adaptiveBias = tier == AiTier.impossible
+      ? (0.4 + profile.playerAggression * 0.6).clamp(0.0, 1.0)
+      : (0.25 + tier.index * 0.08).clamp(0.0, 1.0);
+
   return AiSearchConfig(
     depth: depth,
     timeMs: timeMs,
     randomness: randomness,
     aggressionBias: aggressionBias,
+    adaptiveBias: adaptiveBias,
   );
 }

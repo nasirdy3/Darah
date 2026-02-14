@@ -28,6 +28,20 @@ class MinimaxAB {
 
     bool isTimeout() => now() >= endAt;
 
+    final killerMoves = <int, Move>{};
+    final history = <int, int>{};
+
+    int moveKey(Move mv) {
+      switch (mv.kind) {
+        case MoveKind.place:
+          return (mv.r! * 31) ^ (mv.c! * 17) ^ 11;
+        case MoveKind.step:
+          return (mv.fr! * 31) ^ (mv.fc! * 17) ^ (mv.tr! * 13) ^ (mv.tc! * 7) ^ 23;
+        case MoveKind.capture:
+          return (mv.capR! * 29) ^ (mv.capC! * 19) ^ 31;
+      }
+    }
+
     int alphabeta(GameState state, int d, int alpha, int beta, bool maximizing) {
       if (isTimeout()) return 0;
       final winner = Rules.winner(state);
@@ -35,7 +49,8 @@ class MinimaxAB {
         return winner == me ? 1000000 : -1000000;
       }
       if (d == 0) {
-        return Evaluator.evaluate(state, me, aggressionBias: config.aggressionBias, playerHeat: heatMap);
+        return Evaluator.evaluate(state, me,
+            aggressionBias: config.adaptiveBias, playerHeat: heatMap);
       }
 
       final key = zobrist.hash(state);
@@ -55,7 +70,8 @@ class MinimaxAB {
         return maximizing ? -999999 : 999999;
       }
 
-      _orderMoves(moves, state, me, entry?.best, config.aggressionBias, heatMap);
+      final killer = killerMoves[d];
+      _orderMoves(moves, state, me, entry?.best, killer, history, config.adaptiveBias, heatMap);
 
       final alphaOrig = alpha;
       final betaOrig = beta;
@@ -73,7 +89,12 @@ class MinimaxAB {
             best = mv;
           }
           alpha = max(alpha, value);
-          if (alpha >= beta) break;
+          if (alpha >= beta) {
+            killerMoves[d] = mv;
+            final key = moveKey(mv);
+            history[key] = (history[key] ?? 0) + d * d;
+            break;
+          }
         }
       } else {
         value = 9999999;
@@ -86,7 +107,12 @@ class MinimaxAB {
             best = mv;
           }
           beta = min(beta, value);
-          if (beta <= alpha) break;
+          if (beta <= alpha) {
+            killerMoves[d] = mv;
+            final key = moveKey(mv);
+            history[key] = (history[key] ?? 0) + d * d;
+            break;
+          }
         }
       }
 
@@ -96,7 +122,7 @@ class MinimaxAB {
 
       tt.put(
         key,
-        TranspositionEntry(depth: d, score: value, flag: flag, best: best),
+        TranspositionEntry(depth: d, score: value, flag: flag, best: best, age: tt.age),
       );
 
       return value;
@@ -105,12 +131,23 @@ class MinimaxAB {
     Move? best;
     var bestScore = -9999999;
 
+    tt.tick();
+    tt.prune(maxAge: 4);
     final rootMoves = MoveGenerator.generate(gs);
     if (rootMoves.isEmpty) {
       return (best: null, score: -9999999, timeout: false);
     }
 
-    _orderMoves(rootMoves, gs, me, tt.get(zobrist.hash(gs))?.best, config.aggressionBias, heatMap);
+    _orderMoves(
+      rootMoves,
+      gs,
+      me,
+      tt.get(zobrist.hash(gs))?.best,
+      null,
+      history,
+      config.adaptiveBias,
+      heatMap,
+    );
 
     final scored = <_MoveScore>[];
     for (final mv in rootMoves) {
@@ -143,6 +180,8 @@ class MinimaxAB {
     GameState state,
     Player me,
     Move? best,
+    Move? killer,
+    Map<int, int> history,
     double aggressionBias,
     List<int>? heatMap,
   ) {
@@ -156,9 +195,34 @@ class MinimaxAB {
       }
     }
 
+    if (killer != null) {
+      for (var i = 0; i < moves.length; i++) {
+        if (_sameMove(moves[i], killer)) {
+          final mv = moves.removeAt(i);
+          moves.insert(0, mv);
+          break;
+        }
+      }
+    }
+
+    int keyFor(Move mv) {
+      switch (mv.kind) {
+        case MoveKind.place:
+          return (mv.r! * 31) ^ (mv.c! * 17) ^ 11;
+        case MoveKind.step:
+          return (mv.fr! * 31) ^ (mv.fc! * 17) ^ (mv.tr! * 13) ^ (mv.tc! * 7) ^ 23;
+        case MoveKind.capture:
+          return (mv.capR! * 29) ^ (mv.capC! * 19) ^ 31;
+      }
+    }
+
     moves.sort((a, b) {
-      final sa = Evaluator.evaluate(_applyClone(state, a), me, aggressionBias: aggressionBias, playerHeat: heatMap);
-      final sb = Evaluator.evaluate(_applyClone(state, b), me, aggressionBias: aggressionBias, playerHeat: heatMap);
+      final sa = Evaluator.evaluate(_applyClone(state, a), me,
+              aggressionBias: aggressionBias, playerHeat: heatMap) +
+          (history[keyFor(a)] ?? 0);
+      final sb = Evaluator.evaluate(_applyClone(state, b), me,
+              aggressionBias: aggressionBias, playerHeat: heatMap) +
+          (history[keyFor(b)] ?? 0);
       return sb.compareTo(sa);
     });
   }

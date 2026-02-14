@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:nearby_connections/nearby_connections.dart';
 
@@ -36,24 +37,24 @@ class RematchEvent {
 }
 
 class MultiplayerProtocol {
-  static List<int> encode(ProtocolType type, Map<String, dynamic> data) {
+  static Uint8List encode(ProtocolType type, Map<String, dynamic> data) {
     final map = {'v': kProtocolVersion, 'type': type.name, 'data': data};
-    return utf8.encode(jsonEncode(map));
+    return Uint8List.fromList(utf8.encode(jsonEncode(map)));
   }
 
-  static List<int> encodeStart({required int boardSize, required bool hostIsP1, required String sessionId}) {
+  static Uint8List encodeStart({required int boardSize, required bool hostIsP1, required String sessionId}) {
     return encode(ProtocolType.start, {'boardSize': boardSize, 'hostIsP1': hostIsP1, 'sid': sessionId});
   }
 
-  static List<int> encodeMove({required String sessionId, required Move move}) {
+  static Uint8List encodeMove({required String sessionId, required Move move}) {
     return encode(ProtocolType.move, {'sid': sessionId, 'move': MoveCodec.toJson(move)});
   }
 
-  static List<int> encodeRematch({required String sessionId, required RematchAction action}) {
+  static Uint8List encodeRematch({required String sessionId, required RematchAction action}) {
     return encode(ProtocolType.rematch, {'sid': sessionId, 'action': action.name});
   }
 
-  static List<int> encodeReject({required String sessionId, required String reason}) {
+  static Uint8List encodeReject({required String sessionId, required String reason}) {
     return encode(ProtocolType.reject, {'sid': sessionId, 'reason': reason});
   }
 

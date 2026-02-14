@@ -40,15 +40,22 @@ class Rules {
     if (dr + dc != 1) return false;
 
     // simulate
+    final before = DaraDetector.exact3Lines(gs, gs.turn);
+
     gs.setCell(fr, fc, Player.none);
     gs.setCell(tr, tc, gs.turn);
+
     final illegal4 = DaraDetector.has4Plus(gs, gs.turn);
-    final lineCount = DaraDetector.countExact3(gs, gs.turn);
+    final after = DaraDetector.exact3Lines(gs, gs.turn);
+    
     gs.setCell(tr, tc, Player.none);
     gs.setCell(fr, fc, gs.turn);
 
     if (illegal4) return false;
-    if (lineCount > 1) return false; // cannot stack multiple Daras in one move
+
+    // Check newly formed lines
+    final newLines = after.difference(before);
+    if (newLines.length > 1) return false; // cannot form multiple NEW Daras in one move
 
     return true;
   }

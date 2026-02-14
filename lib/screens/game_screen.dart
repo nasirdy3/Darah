@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../ai/ai_config.dart';
 import '../ai/ai_player.dart';
@@ -79,6 +80,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   late AnimationController toastCtrl;
   late AnimationController shakeCtrl;
   late AnimationController confettiCtrl;
+  late AnimationController pulseCtrl;
+  late AnimationController selectionCtrl;
+  late AnimationController aiFocusCtrl;
 
   final audio = AudioManager.instance;
 
@@ -95,7 +99,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   bool get isNetworked => widget.multiplayer != null;
 
-  Player get human => widget.multiplayer?.localPlayer ?? (widget.settings.playerIsP1 ? Player.p1 : Player.p2);
+  Player get human =>
+      widget.multiplayer?.localPlayer ??
+      (widget.settings.playerIsP1 ? Player.p1 : Player.p2);
   Player get aiSide => human.opponent;
 
   bool get vsAi {
@@ -111,18 +117,31 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool get isHumansTurn {
     if (connectionLost) return false;
     if (isNetworked) {
-      return session.gs.turn == human || (session.gs.phase == Phase.capture && session.gs.captureBy == human);
+      return session.gs.turn == human ||
+          (session.gs.phase == Phase.capture && session.gs.captureBy == human);
     }
     if (!vsAi) return true;
-    return session.gs.turn == human || (session.gs.phase == Phase.capture && session.gs.captureBy == human);
+    return session.gs.turn == human ||
+        (session.gs.phase == Phase.capture && session.gs.captureBy == human);
   }
 
   @override
   void initState() {
     super.initState();
-    toastCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
-    shakeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 360));
-    confettiCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
+    toastCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 180));
+    shakeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 360));
+    confettiCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400));
+    pulseCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat(reverse: true);
+    selectionCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 220));
+    aiFocusCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 800))
+      ..repeat(reverse: true);
     confettiCtrl.addStatusListener((status) {
       if (!mounted) return;
       setState(() {});
@@ -158,7 +177,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _newGame() {
-    final size = widget.multiplayer?.boardSize ?? widget.level?.boardSize ?? widget.settings.boardSize;
+    final size = widget.multiplayer?.boardSize ??
+        widget.level?.boardSize ??
+        widget.settings.boardSize;
     cfg = BoardConfig(size);
     session = GameSession(cfg: cfg, human: human);
     boardSkin = boardSkinById(widget.profile.equippedBoard);
@@ -193,6 +214,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     shakeCtrl.reset();
     confettiCtrl.reset();
+    selectionCtrl.reset();
 
     session.reset();
     _scheduleNetworkTimeout();
@@ -225,8 +247,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _markConnectionIssue(_timeoutReason);
     });
   }
-
-
 
   Future<void> _requestRematch() async {
     if (!isNetworked || pendingRematch) return;
@@ -306,12 +326,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   Future<void> _maybeAiTurn() async {
     if (!vsAi || gameOver) return;
 
-    final aiShouldPlay = (session.gs.phase == Phase.capture && session.gs.captureBy == aiSide) ||
-        (session.gs.phase != Phase.capture && session.gs.turn == aiSide);
+    final aiShouldPlay =
+        (session.gs.phase == Phase.capture && session.gs.captureBy == aiSide) ||
+            (session.gs.phase != Phase.capture && session.gs.turn == aiSide);
     if (!aiShouldPlay) return;
 
     setState(() => aiThinking = true);
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 400));
 
     final ai = AIPlayer(
       profile: AiProfile(
@@ -348,7 +369,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         aiToCell = toIdx;
         aiCaptureCell = null;
       });
-      await Future.delayed(const Duration(milliseconds: 400));
+      await Future.delayed(const Duration(milliseconds: 520));
     } else if (mv.kind == MoveKind.place) {
       final toIdx = mv.r! * cfg.size + mv.c!;
       setState(() {
@@ -356,7 +377,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         aiToCell = toIdx;
         aiCaptureCell = null;
       });
-      await Future.delayed(const Duration(milliseconds: 400));
+      await Future.delayed(const Duration(milliseconds: 460));
     } else if (mv.kind == MoveKind.capture) {
       final capIdx = mv.capR! * cfg.size + mv.capC!;
       setState(() {
@@ -364,7 +385,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         aiToCell = null;
         aiCaptureCell = capIdx;
       });
-      await Future.delayed(const Duration(milliseconds: 350));
+      await Future.delayed(const Duration(milliseconds: 420));
     }
   }
 
@@ -426,7 +447,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return cells;
   }
 
-  Future<void> _applyMove(Move mv, {bool byAi = false, bool byRemote = false}) async {
+  Future<void> _applyMove(Move mv,
+      {bool byAi = false, bool byRemote = false}) async {
     if (gameOver) return;
 
     session.pushSnapshot();
@@ -434,13 +456,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     switch (mv.kind) {
       case MoveKind.place:
         if (!byAi && !byRemote) {
-          widget.profile.recordPlacement(idx: mv.r! * cfg.size + mv.c!, size: cfg.size);
+          widget.profile
+              .recordPlacement(idx: mv.r! * cfg.size + mv.c!, size: cfg.size);
         }
         Rules.applyPlace(session.gs, mv.r!, mv.c!);
         await audio.playPlace();
         break;
       case MoveKind.step:
         Rules.applyStep(session.gs, mv.fr!, mv.fc!, mv.tr!, mv.tc!);
+        if (!byAi && !byRemote) {
+          widget.profile
+              .recordStepDestination(idx: mv.tr! * cfg.size + mv.tc!, size: cfg.size);
+        }
         await audio.playMove();
         break;
       case MoveKind.capture:
@@ -493,7 +520,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (!vsAi && widget.level == null) return;
 
     final playerWon = winner == human;
-    earnedStars = calculateStars(win: playerWon, usedHints: usedHints, usedUndos: usedUndos);
+    earnedStars = calculateStars(
+        win: playerWon, usedHints: usedHints, usedUndos: usedUndos);
 
     if (playerWon) {
       earnedCoins = coinsForWin(level: widget.level, stars: earnedStars);
@@ -528,8 +556,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (session.gs.phase == Phase.capture) {
       if (!Rules.isLegalCapture(session.gs, r, c)) {
         await _showToast('Select an opponent seed to remove');
+        HapticFeedback.lightImpact();
         return;
       }
+      HapticFeedback.mediumImpact();
       await _applyMove(Move.capture(r, c), byAi: false);
       return;
     }
@@ -537,8 +567,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (session.gs.phase == Phase.placement) {
       if (!Rules.isLegalPlace(session.gs, r, c)) {
         await _showToast('Invalid placement (no 3-in-row in placement)');
+        HapticFeedback.lightImpact();
         return;
       }
+      HapticFeedback.selectionClick();
       await _applyMove(Move.place(r, c), byAi: false);
       return;
     }
@@ -550,13 +582,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         await _showToast('Select one of your seeds');
         return;
       }
-      await audio.playSelect();
-      setState(() => selectedCell = idx);
+      setState(() {
+        selectedCell = idx;
+      });
+      selectionCtrl.forward(from: 0);
+      HapticFeedback.selectionClick();
+      audio.playSelect();
       return;
     }
 
     if (selectedCell == idx) {
       setState(() => selectedCell = null);
+      HapticFeedback.selectionClick();
       return;
     }
 
@@ -564,8 +601,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final fc = selectedCell! % n;
     if (!Rules.isLegalStep(session.gs, fr, fc, r, c)) {
       await _showToast('Illegal move');
+      HapticFeedback.lightImpact();
       return;
     }
+
+    // Speculative update for instant feel
+    setState(() {
+       selectedCell = null;
+    });
 
     await _applyMove(Move.step(fr, fc, r, c), byAi: false);
   }
@@ -683,6 +726,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     toastCtrl.dispose();
     shakeCtrl.dispose();
     confettiCtrl.dispose();
+    pulseCtrl.dispose();
+    selectionCtrl.dispose();
+    aiFocusCtrl.dispose();
     super.dispose();
   }
 
@@ -691,6 +737,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final n = cfg.size;
     final legalHighlights = _highlightCells();
     final daraCells = _daraCells();
+    final animation = Listenable.merge([pulseCtrl, selectionCtrl, aiFocusCtrl]);
 
     final phaseLabel = switch (session.gs.phase) {
       Phase.placement => 'Placement',
@@ -700,7 +747,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     final turnLabel = session.gs.phase == Phase.capture
         ? (isNetworked
-            ? (session.gs.captureBy == human ? 'You formed Dara - capture 1 seed' : 'Opponent formed Dara - capture 1 seed')
+            ? (session.gs.captureBy == human
+                ? 'You formed Dara - capture 1 seed'
+                : 'Opponent formed Dara - capture 1 seed')
             : '${_playerName(session.gs.captureBy)} formed Dara - capture 1 seed')
         : (isNetworked
             ? (session.gs.turn == human ? 'Your turn' : "Opponent's turn")
@@ -709,7 +758,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final p1Count = session.gs.remainingP1;
     final p2Count = session.gs.remainingP2;
 
-    final titleLabel = widget.level != null ? 'Level ${widget.level!.id}' : 'Darah';
+    final titleLabel =
+        widget.level != null ? 'Level ${widget.level!.id}' : 'Darah';
 
     return Scaffold(
       appBar: AppBar(
@@ -717,10 +767,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: isNetworked ? null : () {
-              setState(() => _newGame());
-              _maybeAiTurn();
-            },
+            onPressed: isNetworked
+                ? null
+                : () {
+                    setState(() => _newGame());
+                    _maybeAiTurn();
+                  },
           ),
         ],
       ),
@@ -735,7 +787,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     child: _InfoPill(
                       title: turnLabel,
                       subtitle: 'Phase: $phaseLabel',
-                      icon: session.gs.phase == Phase.capture ? Icons.flash_on_rounded : Icons.sports_esports,
+                      icon: session.gs.phase == Phase.capture
+                          ? Icons.flash_on_rounded
+                          : Icons.sports_esports,
                       danger: session.gs.phase == Phase.capture,
                     ),
                   ),
@@ -746,9 +800,19 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Expanded(child: _CountCard(label: 'White', value: p1Count, active: session.gs.turn == Player.p1 || session.gs.captureBy == Player.p1)),
+                  Expanded(
+                      child: _CountCard(
+                          label: 'White',
+                          value: p1Count,
+                          active: session.gs.turn == Player.p1 ||
+                              session.gs.captureBy == Player.p1)),
                   const SizedBox(width: 12),
-                  Expanded(child: _CountCard(label: 'Black', value: p2Count, active: session.gs.turn == Player.p2 || session.gs.captureBy == Player.p2)),
+                  Expanded(
+                      child: _CountCard(
+                          label: 'Black',
+                          value: p2Count,
+                          active: session.gs.turn == Player.p2 ||
+                              session.gs.captureBy == Player.p2)),
                 ],
               ),
             ),
@@ -782,262 +846,340 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   aspectRatio: 1,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final side = min(constraints.maxWidth, constraints.maxHeight);
+                      final side =
+                          min(constraints.maxWidth, constraints.maxHeight);
                       final boardSize = Size.square(side);
                       final cell = side / n;
                       final tokenSize = cell * 0.62;
 
-                      return Stack(
-                        children: [
-                          AnimatedBuilder(
-                            animation: shakeCtrl,
-                            builder: (context, child) {
-                              final shake = sin(shakeCtrl.value * 2 * pi * 3) * (1 - shakeCtrl.value) * 6;
-                              return Transform.translate(
-                                offset: Offset(shake, 0),
-                                child: child,
-                              );
-                            },
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTapDown: (d) {
-                                if (!isHumansTurn || aiThinking) return;
-                                final local = d.localPosition;
-                                final hit = hitTestCell(localPos: local, boardSize: boardSize, n: n);
-                                if (hit == null) return;
-                                _onTapCell(hit);
-                              },
-                              child: CustomPaint(
-                                size: boardSize,
-                                painter: BoardPainter(
-                                  sizeN: n,
-                                  highlightCells: legalHighlights,
-                                  hintCells: hintCells,
-                                  selectedCell: selectedCell,
-                                  captureMode: session.gs.phase == Phase.capture,
-                                  skin: boardSkin,
-                                  aiFromCell: aiFromCell,
-                                  aiToCell: aiToCell,
-                                  aiCaptureCell: aiCaptureCell,
+                      return AnimatedBuilder(
+                        animation: animation,
+                        builder: (context, _) {
+                          return Stack(
+                            children: [
+                              AnimatedBuilder(
+                                animation: shakeCtrl,
+                                builder: (context, child) {
+                                  final shake =
+                                      sin(shakeCtrl.value * 2 * pi * 3) *
+                                          (1 - shakeCtrl.value) *
+                                          6;
+                                  return Transform.translate(
+                                    offset: Offset(shake, 0),
+                                    child: child,
+                                  );
+                                },
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTapDown: (d) {
+                                    if (!isHumansTurn || aiThinking) return;
+                                    final local = d.localPosition;
+                                    final hit = hitTestCell(
+                                        localPos: local,
+                                        boardSize: boardSize,
+                                        n: n);
+                                    if (hit == null) return;
+                                    _onTapCell(hit);
+                                  },
+                                  child: CustomPaint(
+                                    size: boardSize,
+                                    painter: BoardPainter(
+                                      sizeN: n,
+                                      highlightCells: legalHighlights,
+                                      hintCells: hintCells,
+                                      selectedCell: selectedCell,
+                                      captureMode:
+                                          session.gs.phase == Phase.capture,
+                                      skin: boardSkin,
+                                      aiFromCell: aiFromCell,
+                                      aiToCell: aiToCell,
+                                      aiCaptureCell: aiCaptureCell,
+                                      pulse: pulseCtrl.value,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          ...List.generate(n * n, (idx) {
-                            final r = idx ~/ n;
-                            final c = idx % n;
-                            final p = session.gs.getCell(r, c);
-                            if (p == Player.none) return const SizedBox.shrink();
+                              ...List.generate(n * n, (idx) {
+                                final r = idx ~/ n;
+                                final c = idx % n;
+                                final p = session.gs.getCell(r, c);
+                                if (p == Player.none)
+                                  return const SizedBox.shrink();
 
-                            final left = (c + 0.5) * cell - tokenSize / 2;
-                            final top = (r + 0.5) * cell - tokenSize / 2;
+                                final left = (c + 0.5) * cell - tokenSize / 2;
+                                final top = (r + 0.5) * cell - tokenSize / 2;
 
-                            final glow = daraCells.contains(idx);
-                            final selected = selectedCell == idx;
-                            final aiSelected = aiFromCell == idx || aiCaptureCell == idx;
+                                final glow = daraCells.contains(idx);
+                                final selected = selectedCell == idx;
+                                final aiSelected =
+                                    aiFromCell == idx || aiCaptureCell == idx;
+                                final aiPulse = aiFocusCtrl.value;
+                                final selectPulse =
+                                    selected ? selectionCtrl.value : 0.0;
 
-                            return AnimatedPositioned(
-                              key: ValueKey('t_${idx}_${p.name}'),
-                              duration: const Duration(milliseconds: 220),
-                              curve: Curves.easeOutCubic,
-                              left: left,
-                              top: top,
-                              width: tokenSize,
-                              height: tokenSize,
-                              child: AnimatedScale(
-                                duration: const Duration(milliseconds: 160),
-                                curve: Curves.easeOutBack,
-                                scale: selected ? 1.08 : (aiSelected ? 1.04 : 1.0),
-                                child: TokenWidget(
-                                  player: p,
-                                  size: tokenSize,
-                                  skin: seedSkin,
-                                  glow: glow,
-                                  selected: selected,
-                                  aiSelected: aiSelected,
-                                ),
-                              ),
-                            );
-                          }),
-                          if (aiThinking)
-                            Positioned(
-                              top: 12,
-                              right: 12,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1B1510).withOpacity(0.9),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: const [
-                                    Text('Thinking', style: TextStyle(fontWeight: FontWeight.w700)),
-                                    SizedBox(width: 6),
-                                    AnimatedDots(size: 6),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          if (isNetworked && !gameOver && !connectionLost && !isHumansTurn)
-                            Positioned(
-                              top: 12,
-                              left: 12,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1B1510).withOpacity(0.9),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: const [
-                                    Icon(Icons.hourglass_top_rounded, size: 16),
-                                    SizedBox(width: 6),
-                                    Text('Opponent thinking', style: TextStyle(fontWeight: FontWeight.w700)),
-                                    SizedBox(width: 6),
-                                    AnimatedDots(size: 5),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          if (gameOver)
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.65),
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                child: Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(18),
-                                    child: Column(
+                                return AnimatedPositioned(
+                                  key: ValueKey('t_${idx}_${p.name}'),
+                                  duration: const Duration(milliseconds: 220),
+                                  curve: Curves.easeOutCubic,
+                                  left: left,
+                                  top: top,
+                                  width: tokenSize,
+                                  height: tokenSize,
+                                  child: AnimatedScale(
+                                    duration: const Duration(milliseconds: 160),
+                                    curve: Curves.easeOutBack,
+                                    scale: selected
+                                        ? (1.06 + 0.04 * selectPulse)
+                                        : (aiSelected
+                                            ? (1.02 + 0.04 * aiPulse)
+                                            : 1.0),
+                                    child: TokenWidget(
+                                      player: p,
+                                      size: tokenSize,
+                                      skin: seedSkin,
+                                      glow: glow,
+                                      selected: selected,
+                                      aiSelected: aiSelected,
+                                      pulse: selected
+                                          ? selectPulse
+                                          : (aiSelected ? aiPulse : 0.0),
+                                    ),
+                                  ),
+                                );
+                              }),
+                              if (aiThinking)
+                                Positioned(
+                                  top: 12,
+                                  right: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1B1510)
+                                          .withOpacity(0.9),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: Colors.white.withOpacity(0.1)),
+                                    ),
+                                    child: Row(
                                       mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          winner == Player.none ? 'Game Over' : '${_playerName(winner)} Wins',
-                                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                                      children: const [
+                                        Text('Thinking',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w700)),
+                                        SizedBox(width: 6),
+                                        AnimatedDots(size: 6),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              if (isNetworked &&
+                                  !gameOver &&
+                                  !connectionLost &&
+                                  !isHumansTurn)
+                                Positioned(
+                                  top: 12,
+                                  left: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1B1510)
+                                          .withOpacity(0.9),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: Colors.white.withOpacity(0.1)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(Icons.hourglass_top_rounded,
+                                            size: 16),
+                                        SizedBox(width: 6),
+                                        Text('Opponent thinking',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w700)),
+                                        SizedBox(width: 6),
+                                        AnimatedDots(size: 5),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              if (gameOver)
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.65),
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                    child: Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(18),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              winner == Player.none
+                                                  ? 'Game Over'
+                                                  : '${_playerName(winner)} Wins',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .headlineSmall
+                                                  ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w900),
+                                            ),
+                                            if (earnedStars > 0) ...[
+                                              const SizedBox(height: 10),
+                                              _Stars(stars: earnedStars),
+                                            ],
+                                            if (earnedCoins > 0) ...[
+                                              const SizedBox(height: 6),
+                                              Text('+$earnedCoins coins',
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700)),
+                                            ],
+                                            const SizedBox(height: 14),
+                                            if (isNetworked)
+                                              FilledButton(
+                                                onPressed: pendingRematch
+                                                    ? null
+                                                    : _requestRematch,
+                                                child: Text(pendingRematch
+                                                    ? 'Rematch requested'
+                                                    : 'Rematch'),
+                                              )
+                                            else
+                                              FilledButton(
+                                                onPressed: () {
+                                                  setState(() => _newGame());
+                                                  _maybeAiTurn();
+                                                },
+                                                child: const Text('Play Again'),
+                                              ),
+                                            const SizedBox(height: 8),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(context).pop(),
+                                              child: const Text('Exit'),
+                                            ),
+                                          ],
                                         ),
-                                        if (earnedStars > 0) ...[
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              Positioned.fill(
+                                child: ConfettiOverlay(
+                                    progress: confettiCtrl,
+                                    visible: confettiCtrl.isAnimating),
+                              ),
+                              if (connectionLost && !gameOver)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: Colors.black.withOpacity(0.75),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.wifi_off_rounded,
+                                              size: 42, color: Colors.white),
                                           const SizedBox(height: 10),
-                                          _Stars(stars: earnedStars),
-                                        ],
-                                        if (earnedCoins > 0) ...[
-                                          const SizedBox(height: 6),
-                                          Text('+$earnedCoins coins', style: const TextStyle(fontWeight: FontWeight.w700)),
-                                        ],
-                                        const SizedBox(height: 14),
-                                        if (isNetworked)
-                                          FilledButton(
-                                            onPressed: pendingRematch ? null : _requestRematch,
-                                            child: Text(pendingRematch ? 'Rematch requested' : 'Rematch'),
-                                          )
-                                        else
-                                          FilledButton(
-                                            onPressed: () {
-                                              setState(() => _newGame());
-                                              _maybeAiTurn();
-                                            },
-                                            child: const Text('Play Again'),
+                                          Text(
+                                            connectionReason.isEmpty
+                                                ? 'Connection lost'
+                                                : connectionReason,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 18),
+                                            textAlign: TextAlign.center,
                                           ),
-                                        const SizedBox(height: 8),
-                                        TextButton(
-                                          onPressed: () => Navigator.of(context).pop(),
-                                          child: const Text('Exit'),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 6),
+                                          const Text('Match paused',
+                                              style: TextStyle(
+                                                  color: Colors.white70)),
+                                          const SizedBox(height: 14),
+                                          FilledButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(),
+                                            child:
+                                                const Text('Return to lobby'),
+                                          ),
+                                          if (connectionReason ==
+                                              _timeoutReason)
+                                            TextButton(
+                                              onPressed: () {
+                                                setState(() {
+                                                  connectionLost = false;
+                                                  connectionReason = '';
+                                                });
+                                                _scheduleNetworkTimeout();
+                                              },
+                                              child: const Text('Keep waiting'),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          Positioned.fill(
-                            child: ConfettiOverlay(progress: confettiCtrl, visible: confettiCtrl.isAnimating),
-                          ),
-                          if (connectionLost && !gameOver)
-                            Positioned.fill(
-                              child: Container(
-                                color: Colors.black.withOpacity(0.75),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.wifi_off_rounded, size: 42, color: Colors.white),
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        connectionReason.isEmpty ? 'Connection lost' : connectionReason,
-                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 6),
-                                      const Text('Match paused', style: TextStyle(color: Colors.white70)),
-                                      const SizedBox(height: 14),
-                                      FilledButton(
-                                        onPressed: () => Navigator.of(context).pop(),
-                                        child: const Text('Return to lobby'),
-                                      ),
-                                      if (connectionReason == _timeoutReason)
-                                        TextButton(
-                                          onPressed: () {
-                                            setState(() {
-                                              connectionLost = false;
-                                              connectionReason = '';
-                                            });
-                                            _scheduleNetworkTimeout();
-                                          },
-                                          child: const Text('Keep waiting'),
+                              if (showPassOverlay && !gameOver && !isNetworked)
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    onTap: () =>
+                                        setState(() => showPassOverlay = false),
+                                    child: Container(
+                                      color: Colors.black.withOpacity(0.7),
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.swap_horiz_rounded,
+                                                size: 40, color: Colors.white),
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              'Pass device to ${_playerName(passTo)}',
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 18),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            const Text('Tap to continue'),
+                                          ],
                                         ),
-                                    ],
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          if (showPassOverlay && !gameOver && !isNetworked)
-                            Positioned.fill(
-                              child: GestureDetector(
-                                onTap: () => setState(() => showPassOverlay = false),
-                                child: Container(
-                                  color: Colors.black.withOpacity(0.7),
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 14,
+                                child: FadeTransition(
+                                  opacity: CurvedAnimation(
+                                      parent: toastCtrl, curve: Curves.easeOut),
                                   child: Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.swap_horiz_rounded, size: 40, color: Colors.white),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          'Pass device to ${_playerName(passTo)}',
-                                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        const Text('Tap to continue'),
-                                      ],
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF101010)
+                                            .withOpacity(0.85),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                            color:
+                                                Colors.white.withOpacity(0.10)),
+                                      ),
+                                      child: Text(toast,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700)),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 14,
-                            child: FadeTransition(
-                              opacity: CurvedAnimation(parent: toastCtrl, curve: Curves.easeOut),
-                              child: Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF101010).withOpacity(0.85),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: Colors.white.withOpacity(0.10)),
-                                  ),
-                                  child: Text(toast, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                            ],
+                          );
+                        },
                       );
                     },
                   ),
@@ -1064,7 +1206,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 }
 
 class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.title, required this.subtitle, required this.icon, this.danger = false});
+  const _InfoPill(
+      {required this.title,
+      required this.subtitle,
+      required this.icon,
+      this.danger = false});
   final String title;
   final String subtitle;
   final IconData icon;
@@ -1076,7 +1222,8 @@ class _InfoPill extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: (danger ? const Color(0xFF5A1D1D) : const Color(0xFF1E1915)).withOpacity(0.85),
+        color: (danger ? const Color(0xFF5A1D1D) : const Color(0xFF1E1915))
+            .withOpacity(0.85),
         border: Border.all(color: Colors.white.withOpacity(0.10)),
       ),
       child: Row(
@@ -1095,9 +1242,13 @@ class _InfoPill extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 2),
-                Opacity(opacity: 0.75, child: Text(subtitle, style: const TextStyle(fontSize: 12))),
+                Opacity(
+                    opacity: 0.75,
+                    child:
+                        Text(subtitle, style: const TextStyle(fontSize: 12))),
               ],
             ),
           ),
@@ -1108,7 +1259,8 @@ class _InfoPill extends StatelessWidget {
 }
 
 class _CountCard extends StatelessWidget {
-  const _CountCard({required this.label, required this.value, required this.active});
+  const _CountCard(
+      {required this.label, required this.value, required this.active});
   final String label;
   final int value;
   final bool active;
@@ -1120,7 +1272,10 @@ class _CountCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: const Color(0xFF15110E).withOpacity(0.88),
-        border: Border.all(color: active ? const Color(0xFFFFD54F).withOpacity(0.25) : Colors.white.withOpacity(0.08)),
+        border: Border.all(
+            color: active
+                ? const Color(0xFFFFD54F).withOpacity(0.25)
+                : Colors.white.withOpacity(0.08)),
       ),
       child: Row(
         children: [
@@ -1128,9 +1283,14 @@ class _CountCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Opacity(opacity: 0.75, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+                Opacity(
+                    opacity: 0.75,
+                    child: Text(label,
+                        style: const TextStyle(fontWeight: FontWeight.w700))),
                 const SizedBox(height: 4),
-                Text('$value', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                Text('$value',
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w900)),
               ],
             ),
           ),
@@ -1153,25 +1313,11 @@ class _Stars extends StatelessWidget {
         final filled = i < stars;
         return Icon(
           filled ? Icons.star_rounded : Icons.star_border_rounded,
-          color: filled ? const Color(0xFFFFD54F) : Colors.white.withOpacity(0.3),
+          color:
+              filled ? const Color(0xFFFFD54F) : Colors.white.withOpacity(0.3),
           size: 22,
         );
       }),
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

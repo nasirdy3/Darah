@@ -12,6 +12,7 @@ class BoardPainter extends CustomPainter {
     required this.aiFromCell,
     required this.aiToCell,
     required this.aiCaptureCell,
+    required this.pulse,
   });
 
   final int sizeN;
@@ -23,6 +24,7 @@ class BoardPainter extends CustomPainter {
   final int? aiFromCell;
   final int? aiToCell;
   final int? aiCaptureCell;
+  final double pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -62,7 +64,7 @@ class BoardPainter extends CustomPainter {
           colors: [const Color(0xFFB2FF59).withOpacity(0.7), const Color(0xFF4DD0E1).withOpacity(0.7)],
         ).createShader(Rect.fromPoints(from, to))
         ..style = PaintingStyle.stroke
-        ..strokeWidth = cell * 0.08
+        ..strokeWidth = cell * (0.08 + 0.02 * pulse)
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(from, to, trail);
     }
@@ -71,23 +73,41 @@ class BoardPainter extends CustomPainter {
       for (var c = 0; c < sizeN; c++) {
         final cx = (c + 0.5) * cell;
         final cy = (r + 0.5) * cell;
-        final radius = cell * 0.32;
+        // Make pit square with rounded corners
+        final pitSize = cell * 0.75;
+        final pitRect = Rect.fromCenter(center: Offset(cx, cy), width: pitSize, height: pitSize);
+        final pitRRect = RRect.fromRectAndRadius(pitRect, Radius.circular(cell * 0.12));
 
-        final pitRect = Rect.fromCircle(center: Offset(cx, cy), radius: radius);
-
+        // Inner shadow for depth
         final shadow = Paint()
-          ..shader = RadialGradient(
-            colors: [Colors.black.withOpacity(0.55), Colors.transparent],
-            stops: const [0.0, 1.0],
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.black.withOpacity(0.7), Colors.white.withOpacity(0.1)],
           ).createShader(pitRect);
-        canvas.drawCircle(Offset(cx, cy + cell * 0.06), radius, shadow);
+        
+        // Draw indent
+        canvas.drawRRect(pitRRect.shift(const Offset(1, 1)), shadow);
 
         final pit = Paint()
-          ..shader = RadialGradient(
-            colors: [skin.pitDark, skin.pitLight, skin.pitDark.withOpacity(0.8)],
-            stops: const [0.0, 0.7, 1.0],
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [skin.pitDark, skin.pitLight],
           ).createShader(pitRect);
-        canvas.drawCircle(Offset(cx, cy), radius * 0.95, pit);
+        canvas.drawRRect(pitRRect, pit);
+        
+        // Inner glow/highlight for 3D edge
+         final edge = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.transparent, Colors.white.withOpacity(0.2)],
+            stops: const [0.5, 1.0]
+          ).createShader(pitRect);
+        canvas.drawRRect(pitRRect, edge);
 
         final idx = r * sizeN + c;
 
@@ -96,7 +116,7 @@ class BoardPainter extends CustomPainter {
             ..color = (captureMode ? skin.capture : skin.highlight).withOpacity(0.55)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 3.2;
-          canvas.drawCircle(Offset(cx, cy), radius * 0.98, hl);
+          canvas.drawRRect(pitRRect.inflate(4), hl);
         }
 
         if (hintCells.contains(idx)) {
@@ -104,39 +124,39 @@ class BoardPainter extends CustomPainter {
             ..color = const Color(0xFF7DD9FF).withOpacity(0.65)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 3.4;
-          canvas.drawCircle(Offset(cx, cy), radius * 1.02, hl);
+          canvas.drawRRect(pitRRect.inflate(6), hl);
         }
 
         if (selectedCell == idx) {
           final sel = Paint()
-            ..color = const Color(0xFFFFD54F).withOpacity(0.6)
+            ..color = const Color(0xFFFFD54F).withOpacity(0.6 + 0.2 * pulse)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.2;
-          canvas.drawCircle(Offset(cx, cy), radius * 1.08, sel);
+            ..strokeWidth = 4.2 + (1.4 * pulse);
+          canvas.drawRRect(pitRRect.inflate(8 + 2 * pulse), sel);
         }
 
         if (aiFromCell == idx) {
           final ai = Paint()
-            ..color = const Color(0xFFB2FF59).withOpacity(0.75)
+            ..color = const Color(0xFFB2FF59).withOpacity(0.65 + 0.25 * pulse)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.4;
-          canvas.drawCircle(Offset(cx, cy), radius * 1.1, ai);
+            ..strokeWidth = 3.2 + (1.6 * pulse);
+           canvas.drawRRect(pitRRect.inflate(8 + 2 * pulse), ai);
         }
 
         if (aiToCell == idx) {
           final ai = Paint()
-            ..color = const Color(0xFF4DD0E1).withOpacity(0.8)
+            ..color = const Color(0xFF4DD0E1).withOpacity(0.7 + 0.25 * pulse)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.6;
-          canvas.drawCircle(Offset(cx, cy), radius * 1.12, ai);
+            ..strokeWidth = 3.4 + (1.7 * pulse);
+           canvas.drawRRect(pitRRect.inflate(9 + 2 * pulse), ai);
         }
 
         if (aiCaptureCell == idx) {
           final ai = Paint()
-            ..color = const Color(0xFFFF6F60).withOpacity(0.85)
+            ..color = const Color(0xFFFF6F60).withOpacity(0.7 + 0.3 * pulse)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.2;
-          canvas.drawCircle(Offset(cx, cy), radius * 1.14, ai);
+            ..strokeWidth = 4.0 + (2.0 * pulse);
+           canvas.drawRRect(pitRRect.inflate(10 + 2 * pulse), ai);
         }
       }
     }
@@ -166,7 +186,8 @@ class BoardPainter extends CustomPainter {
         oldDelegate.skin != skin ||
         oldDelegate.aiFromCell != aiFromCell ||
         oldDelegate.aiToCell != aiToCell ||
-        oldDelegate.aiCaptureCell != aiCaptureCell;
+        oldDelegate.aiCaptureCell != aiCaptureCell ||
+        oldDelegate.pulse != pulse;
   }
 }
 
@@ -176,5 +197,15 @@ int? hitTestCell({required Offset localPos, required Size boardSize, required in
   final c = (localPos.dx / cell).floor();
   final r = (localPos.dy / cell).floor();
   if (r < 0 || c < 0 || r >= n || c >= n) return null;
+  
+  // Rectangular hit test with small margin
+  final cx = (c + 0.5) * cell;
+  final cy = (r + 0.5) * cell;
+  final dx = (localPos.dx - cx).abs();
+  final dy = (localPos.dy - cy).abs();
+  
+  // Allow hitting almost the entire cell area (90% width/height)
+  if (dx > cell * 0.45 || dy > cell * 0.45) return null;
+  
   return r * n + c;
 }

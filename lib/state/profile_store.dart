@@ -190,8 +190,16 @@ class ProfileStore {
   }
 
   void recordPlacement({required int idx, required int size}) {
+    recordMoveHeat(idx: idx, size: size, weight: 1);
+  }
+
+  void recordStepDestination({required int idx, required int size}) {
+    recordMoveHeat(idx: idx, size: size, weight: 2);
+  }
+
+  void recordMoveHeat({required int idx, required int size, int weight = 1}) {
     final heat = size == 5 ? heatMap5 : heatMap6;
     if (idx < 0 || idx >= heat.length) return;
-    heat[idx] = heat[idx] + 1;
+    heat[idx] = heat[idx] + weight;
   }
 }
