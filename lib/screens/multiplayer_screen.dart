@@ -148,7 +148,7 @@ class _MultiplayerScreenState extends State<MultiplayerScreen> with SingleTicker
     _connectedId = id;
     _nearby.acceptConnection(
       id,
-      onPayloadReceived: (endpointId, payload) {
+      onPayLoadReceived: (endpointId, payload) {
         _handlePayload(endpointId, payload);
       },
       onPayloadTransferUpdate: (id, update) {},
