@@ -29,24 +29,48 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF2D1F17),
       appBar: AppBar(
-        title: const Text('Store'),
+        title: const Text('Merchant\'s Stall'),
+        backgroundColor: const Color(0xFF3E2723),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: 16),
             child: Center(
-              child: Row(
-                children: [
-                  const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD54F), size: 18),
-                  const SizedBox(width: 6),
-                  Text('${widget.profile.coins}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                ],
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4A3428), Color(0xFF3E2723)],
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFFFFB300).withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD54F), size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${widget.profile.coins}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFFFD54F),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ],
         bottom: TabBar(
           controller: _tabs,
+          indicatorColor: const Color(0xFFFFB300),
+          labelColor: const Color(0xFFFFD54F),
+          unselectedLabelColor: Colors.white.withOpacity(0.6),
           tabs: const [
             Tab(text: 'Boards'),
             Tab(text: 'Seeds'),
@@ -56,11 +80,14 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
         ),
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF120E0B), Color(0xFF080705)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF3E2723),
+              const Color(0xFF2D1F17),
+            ],
           ),
         ),
         child: TabBarView(
@@ -110,7 +137,10 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
     if (!widget.profile.spendCoins(item.cost)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not enough coins')),
+        SnackBar(
+          content: const Text('Not enough coins'),
+          backgroundColor: const Color(0xFF8D6E63),
+        ),
       );
       return;
     }
@@ -138,7 +168,10 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${item.name} unlocked')),
+      SnackBar(
+        content: Text('${item.name} unlocked!'),
+        backgroundColor: const Color(0xFF4A3428),
+      ),
     );
   }
 }
@@ -154,44 +187,153 @@ class _StoreList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, __) => const SizedBox(height: 14),
       itemBuilder: (context, index) {
         final item = items[index];
         final owned = isOwned(item);
+        
         return Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            color: const Color(0xFF1B1510),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: owned
+                  ? [
+                      const Color(0xFF4A3428).withOpacity(0.5),
+                      const Color(0xFF3E2723).withOpacity(0.5),
+                    ]
+                  : [
+                      const Color(0xFF4A3428),
+                      const Color(0xFF3E2723),
+                    ],
+            ),
+            border: Border.all(
+              color: owned
+                  ? const Color(0xFF8D6E63).withOpacity(0.3)
+                  : const Color(0xFFFFB300).withOpacity(0.2),
+              width: 1.5,
+            ),
+            boxShadow: owned
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: Row(
             children: [
+              // Item icon
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: owned
+                        ? [const Color(0xFF8D6E63), const Color(0xFF6D4C41)]
+                        : [const Color(0xFFFFD54F), const Color(0xFFFFB300)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (owned ? const Color(0xFF8D6E63) : const Color(0xFFFFB300))
+                          .withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _getIconForType(item.type),
+                  color: owned ? Colors.white.withOpacity(0.5) : const Color(0xFF3E2723),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              
+              // Item details
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 6),
-                    Text(item.description, style: TextStyle(color: Colors.white.withOpacity(0.6))),
+                    Text(
+                      item.name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        color: owned ? Colors.white.withOpacity(0.5) : Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.description,
+                      style: TextStyle(
+                        color: owned
+                            ? Colors.white.withOpacity(0.3)
+                            : Colors.white.withOpacity(0.7),
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
+              
+              // Price and buy button
               Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD54F), size: 16),
-                      const SizedBox(width: 4),
-                      Text('${item.cost}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                    ],
-                  ),
+                  if (!owned)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: const Color(0xFF2D1F17),
+                        border: Border.all(
+                          color: const Color(0xFFFFB300).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.monetization_on_rounded,
+                            color: Color(0xFFFFD54F),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${item.cost}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFFFD54F),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const SizedBox(height: 8),
-                  FilledButton(
+                  ElevatedButton(
                     onPressed: owned ? null : () => onBuy(item),
-                    child: Text(owned ? 'Owned' : 'Buy'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: owned
+                          ? const Color(0xFF8D6E63).withOpacity(0.3)
+                          : const Color(0xFFFFB300),
+                      foregroundColor: owned ? Colors.white.withOpacity(0.5) : const Color(0xFF3E2723),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: owned ? 0 : 4,
+                    ),
+                    child: Text(
+                      owned ? 'Owned' : 'Buy',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ],
               ),
@@ -201,4 +343,18 @@ class _StoreList extends StatelessWidget {
       },
     );
   }
+
+  IconData _getIconForType(StoreItemType type) {
+    switch (type) {
+      case StoreItemType.board:
+        return Icons.grid_on_rounded;
+      case StoreItemType.seed:
+        return Icons.circle;
+      case StoreItemType.boost:
+        return Icons.flash_on_rounded;
+      case StoreItemType.aiTier:
+        return Icons.psychology_rounded;
+    }
+  }
 }
+

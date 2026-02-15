@@ -14,25 +14,28 @@ class LevelDefinition {
   final int aiLevel;
 }
 
-final List<LevelDefinition> levels = List.generate(60, (i) {
+final List<LevelDefinition> levels = List.generate(300, (i) {
   final id = i + 1;
-  final boardSize = id <= 20 ? 5 : 6;
+  // Increase board size as player progresses
+  final boardSize = id <= 40 ? 5 : 6;
+  
   String tier;
-  if (id <= 10) {
+  if (id <= 30) {
     tier = 'beginner';
-  } else if (id <= 20) {
+  } else if (id <= 70) {
     tier = 'amateur';
-  } else if (id <= 30) {
+  } else if (id <= 130) {
     tier = 'pro';
-  } else if (id <= 40) {
+  } else if (id <= 200) {
     tier = 'master';
-  } else if (id <= 50) {
+  } else if (id <= 260) {
     tier = 'grandmaster';
   } else {
     tier = 'impossible';
   }
 
-  final aiLevel = (6 + id * 2).clamp(1, 300);
+  // Smooth aiLevel scaling from 1 to 300
+  final aiLevel = (1 + (id / 300) * 299).round().clamp(1, 350);
 
   return LevelDefinition(
     id: id,

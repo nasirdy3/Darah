@@ -324,7 +324,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _maybeAiTurn() async {
-    if (!vsAi || gameOver) return;
+    if (!vsAi || gameOver || aiThinking) return;
 
     final aiShouldPlay =
         (session.gs.phase == Phase.capture && session.gs.captureBy == aiSide) ||
@@ -332,7 +332,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (!aiShouldPlay) return;
 
     setState(() => aiThinking = true);
-    await Future.delayed(const Duration(milliseconds: 400));
+    
+    // Safety delay to ensure state is settled
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted || gameOver) {
+      setState(() => aiThinking = false);
+      return;
+    }
 
     final ai = AIPlayer(
       profile: AiProfile(
@@ -345,15 +351,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
 
     final mv = await ai.chooseMove(session.gs.clone(), aiSide);
-    if (!mounted || mv == null || gameOver) return;
-
-    setState(() => aiThinking = false);
+    if (!mounted || mv == null || gameOver) {
+      if (mounted) setState(() => aiThinking = false);
+      return;
+    }
 
     await _animateAiMove(mv);
     await _applyMove(mv, byAi: true);
 
     if (!mounted) return;
     setState(() {
+      aiThinking = false;
       aiFromCell = null;
       aiToCell = null;
       aiCaptureCell = null;
@@ -948,28 +956,44 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                 );
                               }),
                               if (aiThinking)
-                                Positioned(
-                                  top: 12,
-                                  right: 12,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF1B1510)
-                                          .withOpacity(0.9),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                          color: Colors.white.withOpacity(0.1)),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: const [
-                                        Text('Thinking',
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.w700)),
-                                        SizedBox(width: 6),
-                                        AnimatedDots(size: 6),
-                                      ],
+                                Positioned.fill(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+                                      child: Container(
+                                        color: Colors.black.withOpacity(0.1),
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF1B1510).withOpacity(0.9),
+                                              borderRadius: BorderRadius.circular(20),
+                                              border: Border.all(color: Colors.white.withOpacity(0.1)),
+                                              boxShadow: [
+                                                BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 20)
+                                              ],
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: const [
+                                                SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4DD0E1)),
+                                                ),
+                                                SizedBox(width: 14),
+                                                Text('COMPUTER THINKING',
+                                                    style: TextStyle(
+                                                        fontWeight: FontWeight.w900,
+                                                        fontSize: 12,
+                                                        letterSpacing: 1.2,
+                                                        color: Colors.white)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1128,24 +1152,49 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                   child: GestureDetector(
                                     onTap: () =>
                                         setState(() => showPassOverlay = false),
-                                    child: Container(
-                                      color: Colors.black.withOpacity(0.7),
-                                      child: Center(
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(Icons.swap_horiz_rounded,
-                                                size: 40, color: Colors.white),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              'Pass device to ${_playerName(passTo)}',
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 18),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(24),
+                                      child: BackdropFilter(
+                                        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                        child: Container(
+                                          color: Colors.black.withOpacity(0.6),
+                                          child: Center(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.all(24),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white.withOpacity(0.05),
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                                                  ),
+                                                  child: const Icon(Icons.swap_horiz_rounded,
+                                                      size: 48, color: Color(0xFF4DD0E1)),
+                                                ),
+                                                const SizedBox(height: 24),
+                                                Text(
+                                                  'PASS DEVICE TO ${_playerName(passTo).toUpperCase()}',
+                                                  style: const TextStyle(
+                                                      fontWeight: FontWeight.w900,
+                                                      letterSpacing: 1.5,
+                                                      fontSize: 16),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Text('YOUR TURN NEXT',
+                                                    style: TextStyle(
+                                                        color: Colors.white.withOpacity(0.5),
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 12)),
+                                                const SizedBox(height: 40),
+                                                Text('TAP ANYWHERE TO START',
+                                                    style: TextStyle(
+                                                        color: const Color(0xFF4DD0E1).withOpacity(0.8),
+                                                        fontWeight: FontWeight.w800,
+                                                        fontSize: 13)),
+                                              ],
                                             ),
-                                            const SizedBox(height: 6),
-                                            const Text('Tap to continue'),
-                                          ],
+                                          ),
                                         ),
                                       ),
                                     ),

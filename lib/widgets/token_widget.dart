@@ -26,74 +26,128 @@ class TokenWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     if (player == Player.none) return const SizedBox.shrink();
 
-    final palette = player == Player.p1 ? skin.p1 : skin.p2;
-    final glowColor = palette.glow;
-    final pulseBoost = (0.2 + 0.6 * pulse).clamp(0.2, 0.9);
-
+    final isWhite = player == Player.p1;
+    
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.22),
+        shape: BoxShape.circle,
         boxShadow: [
+          // Glow effects
           if (glow)
             BoxShadow(
-              color: glowColor.withOpacity(0.5 + 0.2 * pulse),
-              blurRadius: 16 + 10 * pulse,
-              spreadRadius: 2 + pulseBoost * 1.5,
+              color: const Color(0xFFFFB300).withOpacity(0.5 + 0.2 * pulse),
+              blurRadius: 18 + 12 * pulse,
+              spreadRadius: 3 + 2 * pulse,
             ),
           if (selected)
             BoxShadow(
-              color: Colors.white.withOpacity(0.3 + 0.2 * pulse),
-              blurRadius: 14 + 6 * pulse,
-              spreadRadius: 1 + pulseBoost,
+              color: const Color(0xFFFFD54F).withOpacity(0.6 + 0.3 * pulse),
+              blurRadius: 16 + 10 * pulse,
+              spreadRadius: 2 + 2 * pulse,
             ),
           if (aiSelected)
             BoxShadow(
-              color: glowColor.withOpacity(0.4 + 0.3 * pulse),
-              blurRadius: 14 + 8 * pulse,
-              spreadRadius: 1 + pulseBoost,
+              color: const Color(0xFF4DD0E1).withOpacity(0.5 + 0.3 * pulse),
+              blurRadius: 16 + 10 * pulse,
+              spreadRadius: 2 + 2 * pulse,
             ),
+          // Cast shadow on board
           BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 8,
-            offset: const Offset(2, 5),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 2,
-            offset: const Offset(1, 1),
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: size * 0.15,
+            offset: Offset(size * 0.03, size * 0.08),
           ),
         ],
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      ),
+      child: isWhite ? _buildIvoryToken() : _buildEbonyToken(),
+    );
+  }
+
+  Widget _buildIvoryToken() {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          center: const Alignment(-0.3, -0.4),
+          radius: 1.0,
           colors: [
-            palette.rim,
-            palette.base,
-            palette.base,
-            Colors.black.withOpacity(0.4),
+            const Color(0xFFFFFBF0), // Bright ivory highlight
+            const Color(0xFFFFF8E1), // Cream ivory
+            const Color(0xFFFFF3E0), // Warm ivory
+            const Color(0xFFE8D5C4), // Darker edge
           ],
-          stops: const [0.0, 0.2, 0.6, 1.0],
+          stops: const [0.0, 0.3, 0.7, 1.0],
         ),
+        boxShadow: [
+          // Inner shadow for depth
+          BoxShadow(
+            color: const Color(0xFFD7C0AE).withOpacity(0.3),
+            blurRadius: size * 0.08,
+            offset: Offset(size * 0.02, size * 0.02),
+            spreadRadius: -size * 0.02,
+          ),
+        ],
       ),
       child: Container(
-        margin: EdgeInsets.all(size * 0.08),
+        margin: EdgeInsets.all(size * 0.05),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(size * 0.16),
+          shape: BoxShape.circle,
           gradient: RadialGradient(
-            center: const Alignment(-0.4, -0.4),
-            radius: 1.2,
+            center: const Alignment(-0.4, -0.5),
+            radius: 0.6,
             colors: [
-              Colors.white.withOpacity(0.5), // Specular highlight
-              palette.base,
-              palette.base,
-              palette.rim,
+              Colors.white.withOpacity(0.9), // Specular highlight
+              Colors.white.withOpacity(0.3),
+              Colors.transparent,
             ],
-            stops: const [0.0, 0.2, 0.6, 1.0],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEbonyToken() {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          center: const Alignment(-0.2, -0.3),
+          radius: 1.2,
+          colors: [
+            const Color(0xFF3E2723), // Subtle brown highlight
+            const Color(0xFF2D1F17), // Dark brown
+            const Color(0xFF1A1410), // Deep charcoal
+            const Color(0xFF0F0A08), // Almost black
+          ],
+          stops: const [0.0, 0.3, 0.7, 1.0],
+        ),
+        boxShadow: [
+          // Inner shadow
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: size * 0.06,
+            offset: Offset(size * 0.015, size * 0.015),
+            spreadRadius: -size * 0.015,
+          ),
+        ],
+      ),
+      child: Container(
+        margin: EdgeInsets.all(size * 0.06),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            center: const Alignment(-0.3, -0.4),
+            radius: 0.5,
+            colors: [
+              const Color(0xFF8D6E63).withOpacity(0.3), // Subtle warm highlight
+              Colors.transparent,
+            ],
           ),
         ),
       ),
     );
   }
 }
+

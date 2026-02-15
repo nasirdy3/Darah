@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../ai/ai_config.dart';
@@ -66,166 +67,173 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final unlockedSeeds = seedSkins.where((s) => widget.profile.unlockedSeeds.contains(s.id)).toList();
     final tiers = AiTier.values;
 
-    if (unlockedBoards.isNotEmpty && !unlockedBoards.any((b) => b.id == boardSkinId)) {
-      boardSkinId = unlockedBoards.first.id;
-    }
-    if (unlockedSeeds.isNotEmpty && !unlockedSeeds.any((s) => s.id == seedSkinId)) {
-      seedSkinId = unlockedSeeds.first.id;
-    }
-    if (!widget.profile.unlockedAiTiers.contains(aiTierId)) {
-      aiTierId = 'amateur';
-    }
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save_rounded),
-            onPressed: () async {
-              await _save();
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Saved')),
-              );
-            },
+      backgroundColor: const Color(0xFF0F0F0F),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(
+            title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.w900)),
+            backgroundColor: const Color(0xFF0F0F0F),
+            foregroundColor: Colors.white,
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  await _save();
+                  if (!mounted) return;
+                  Navigator.of(context).pop();
+                },
+                child: const Text('DONE', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF4DD0E1))),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _Card(
-            title: 'Board Size',
-            child: DropdownButtonFormField<int>(
-              value: boardSize,
-              items: const [
-                DropdownMenuItem(value: 5, child: Text('5x5 (6 seeds/player)')),
-                DropdownMenuItem(value: 6, child: Text('6x6 (12 seeds/player)')),
-              ],
-              onChanged: (v) => setState(() => boardSize = v ?? 5),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _Card(
-            title: 'Opponent',
-            child: Column(
-              children: [
-                SwitchListTile.adaptive(
-                  value: vsAi,
-                  onChanged: (v) => setState(() => vsAi = v),
-                  title: const Text('Play vs AI'),
-                  subtitle: const Text('Turn off for local pass-and-play'),
-                ),
-                const SizedBox(height: 8),
-                ListTile(
-                  title: const Text('Choose Player Color'),
-                  subtitle: Text(playerIsP1 ? 'You: White (First)' : 'You: Black (Second)'),
-                  trailing: SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: true, label: Text('White')),
-                      ButtonSegment(value: false, label: Text('Black')),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _SectionHeader(title: 'Game Config'),
+                _GlassCard(
+                  child: Column(
+                    children: [
+                      _SettingRow(
+                        title: 'Board Size',
+                        subtitle: boardSize == 5 ? '5x5 (Standard)' : '6x6 (Pro)',
+                        trailing: SegmentedButton<int>(
+                          segments: const [
+                            ButtonSegment(value: 5, label: Text('5x5')),
+                            ButtonSegment(value: 6, label: Text('6x6')),
+                          ],
+                          selected: {boardSize},
+                          onSelectionChanged: (s) => setState(() => boardSize = s.first),
+                        ),
+                      ),
+                      const _Divider(),
+                      _SettingRow(
+                        title: 'Player Color',
+                        subtitle: playerIsP1 ? 'Start first as White' : 'Start second as Black',
+                        trailing: SegmentedButton<bool>(
+                          segments: const [
+                            ButtonSegment(value: true, label: Text('White')),
+                            ButtonSegment(value: false, label: Text('Black')),
+                          ],
+                          selected: {playerIsP1},
+                          onSelectionChanged: (s) => setState(() => playerIsP1 = s.first),
+                        ),
+                      ),
+                       const _Divider(),
+                      SwitchListTile(
+                        title: const Text('Play vs Computer', style: TextStyle(fontWeight: FontWeight.w700)),
+                        subtitle: const Text('Experience high-performance AI'),
+                        value: vsAi,
+                        onChanged: (v) => setState(() => vsAi = v),
+                        activeColor: const Color(0xFF4DD0E1),
+                      ),
                     ],
-                    selected: {playerIsP1},
-                    onSelectionChanged: (s) => setState(() => playerIsP1 = s.first),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _Card(
-            title: 'AI Difficulty',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: tiers.map((tier) {
-                    final unlocked = widget.profile.unlockedAiTiers.contains(tier.id);
-                    return ChoiceChip(
-                      label: Text(tier.label),
-                      selected: aiTierId == tier.id,
-                      onSelected: unlocked
-                          ? (v) => setState(() => aiTierId = tier.id)
-                          : null,
-                      avatar: unlocked ? null : const Icon(Icons.lock, size: 16),
-                    );
-                  }).toList(),
+                
+                if (vsAi) ...[
+                  _SectionHeader(title: 'AI Intelligence'),
+                  _GlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Challenge Tier', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white70)),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: tiers.map((tier) {
+                            final unlocked = widget.profile.unlockedAiTiers.contains(tier.id);
+                            final selected = aiTierId == tier.id;
+                            return GestureDetector(
+                              onTap: unlocked ? () => setState(() => aiTierId = tier.id) : null,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: selected ? const Color(0xFF4DD0E1) : Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: selected ? Colors.white.withOpacity(0.3) : (unlocked ? Colors.white.withOpacity(0.1) : Colors.transparent),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (!unlocked) ...[
+                                      const Icon(Icons.lock_rounded, size: 14, color: Colors.white38),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    Text(
+                                      tier.label.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w900,
+                                        color: selected ? Colors.black : (unlocked ? Colors.white : Colors.white38),
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                             const Text('Refinement Level', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white70)),
+                             Text('$aiLevel', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF4DD0E1))),
+                          ],
+                        ),
+                        Slider(
+                          value: aiLevel.toDouble(),
+                          min: 1,
+                          max: 300,
+                          activeColor: const Color(0xFF4DD0E1),
+                          inactiveColor: Colors.white10,
+                          onChanged: (v) => setState(() => aiLevel = v.round()),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                _SectionHeader(title: 'Aesthetics'),
+                _GlassCard(
+                   child: Column(
+                     children: [
+                        _SettingRow(
+                          title: 'Board Design',
+                          subtitle: boardSkins.firstWhere((s) => s.id == boardSkinId).name,
+                          trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white38),
+                        ),
+                        const _Divider(),
+                        _SettingRow(
+                          title: 'Seed Design',
+                          subtitle: seedSkins.firstWhere((s) => s.id == seedSkinId).name,
+                          trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white38),
+                        ),
+                     ],
+                   ),
                 ),
-                const SizedBox(height: 12),
-                Text('Level: $aiLevel', style: const TextStyle(fontWeight: FontWeight.w700)),
-                Slider(
-                  value: aiLevel.toDouble(),
-                  min: 1,
-                  max: 300,
-                  divisions: 299,
-                  label: '$aiLevel',
-                  onChanged: vsAi ? (v) => setState(() => aiLevel = v.round()) : null,
+
+                _SectionHeader(title: 'Feedback & Audio'),
+                _GlassCard(
+                  child: Column(
+                    children: [
+                      _ToggleRow(title: 'Sound Effects', value: soundOn, onChanged: (v) => setState(() => soundOn = v)),
+                      const _Divider(),
+                      _ToggleRow(title: 'Ambience Music', value: musicOn, onChanged: (v) => setState(() => musicOn = v)),
+                      const _Divider(),
+                      _ToggleRow(title: 'Tactile Haptics', value: hapticsOn, onChanged: (v) => setState(() => hapticsOn = v)),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _Card(
-            title: 'Audio & Haptics',
-            child: Column(
-              children: [
-                SwitchListTile.adaptive(
-                  value: soundOn,
-                  onChanged: (v) => setState(() => soundOn = v),
-                  title: const Text('Sound Effects'),
-                ),
-                SwitchListTile.adaptive(
-                  value: musicOn,
-                  onChanged: (v) => setState(() => musicOn = v),
-                  title: const Text('Background Music'),
-                ),
-                SwitchListTile.adaptive(
-                  value: hapticsOn,
-                  onChanged: (v) => setState(() => hapticsOn = v),
-                  title: const Text('Haptic Feedback'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _Card(
-            title: 'Cosmetics',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DropdownButtonFormField<String>(
-                  value: boardSkinId,
-                  items: unlockedBoards
-                      .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
-                      .toList(),
-                  onChanged: (v) => setState(() => boardSkinId = v ?? boardSkinId),
-                  decoration: const InputDecoration(labelText: 'Board Skin'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: seedSkinId,
-                  items: unlockedSeeds
-                      .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
-                      .toList(),
-                  onChanged: (v) => setState(() => seedSkinId = v ?? seedSkinId),
-                  decoration: const InputDecoration(labelText: 'Seed Skin'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: () async {
-              await _save();
-              if (!mounted) return;
-              Navigator.of(context).pop();
-            },
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
-              child: Text('Done', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                
+                const SizedBox(height: 40),
+              ]),
             ),
           ),
         ],
@@ -234,26 +242,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _Card extends StatelessWidget {
-  const _Card({required this.title, required this.child});
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
   final String title;
-  final Widget child;
-
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 10),
-            child,
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 10, top: 16),
+      child: Text(title.toUpperCase(), 
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Colors.white38)),
+    );
+  }
+}
+
+class _GlassCard extends StatelessWidget {
+  const _GlassCard({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
       ),
+      child: child,
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({required this.title, required this.subtitle, required this.trailing});
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white38)),
+              ],
+            ),
+          ),
+          trailing,
+        ],
+      ),
+    );
+  }
+}
+
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({required this.title, required this.value, required this.onChanged});
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        Switch.adaptive(value: value, onChanged: onChanged, activeColor: const Color(0xFF4DD0E1)),
+      ],
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  const _Divider({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Divider(color: Colors.white.withOpacity(0.05), height: 1),
     );
   }
 }

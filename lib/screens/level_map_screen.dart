@@ -1,8 +1,10 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../progression/levels.dart';
 import '../state/profile_store.dart';
 import '../state/settings_store.dart';
+import '../widgets/candy_map_painter.dart';
 import 'game_screen.dart';
 
 class LevelMapScreen extends StatefulWidget {
@@ -15,125 +17,144 @@ class LevelMapScreen extends StatefulWidget {
 }
 
 class _LevelMapScreenState extends State<LevelMapScreen> {
+  final ScrollController _scrollController = ScrollController();
+  
+  @override
+  void initState() {
+    super.initState();
+    // Scroll to the latest unlocked level
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToLatest();
+    });
+  }
+
+  void _scrollToLatest() {
+    int latestIdx = 0;
+    for (var i = 0; i < levels.length; i++) {
+      if (widget.profile.isLevelUnlocked(levels[i].id)) {
+        latestIdx = i;
+      }
+    }
+    
+    final size = MediaQuery.of(context).size;
+    const itemHeight = 120.0;
+    final totalHeight = levels.length * itemHeight + 200;
+    final dy = totalHeight - 100 - (latestIdx * itemHeight);
+    
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        (dy - size.height / 2).clamp(0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 1000),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    const itemHeight = 120.0;
+    final totalHeight = levels.length * itemHeight + 200;
+
+    final List<LevelNode> nodes = [];
+    for (var i = 0; i < levels.length; i++) {
+      final level = levels[i];
+      // Winding logic
+      final row = i;
+      final t = row * 0.4;
+      final dx = size.width / 2 + sin(t) * (size.width * 0.3);
+      final dy = totalHeight - 100 - (i * itemHeight);
+      
+      nodes.add(LevelNode(
+        level: level,
+        pos: Offset(dx, dy),
+        isUnlocked: widget.profile.isLevelUnlocked(level.id),
+        stars: widget.profile.starsFor(level.id),
+      ));
+    }
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Level Map'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Center(
+      backgroundColor: const Color(0xFF0F0F0F),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            controller: _scrollController,
+            child: GestureDetector(
+              onTapUp: (details) {
+                final local = details.localPosition;
+                for (final node in nodes) {
+                  final dist = (node.pos - local).distance;
+                  if (dist < 40 && node.isUnlocked) {
+                    _startLevel(node.level);
+                    break;
+                  }
+                }
+              },
+              child: CustomPaint(
+                size: Size(size.width, totalHeight),
+                painter: CandyMapPainter(
+                  nodes: nodes,
+                  scrollOffset: 0,
+                  accentColor: const Color(0xFF4DD0E1),
+                ),
+              ),
+            ),
+          ),
+          // Top Bar
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 8, bottom: 12, left: 16, right: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                ),
+              ),
               child: Row(
                 children: [
-                  const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD54F), size: 18),
-                  const SizedBox(width: 6),
-                  Text('${widget.profile.coins}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD54F), size: 20),
+                        const SizedBox(width: 8),
+                        Text('${widget.profile.coins}', 
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF120E0B), Color(0xFF080705)],
-          ),
-        ),
-        child: GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.9,
-          ),
-          itemCount: levels.length,
-          itemBuilder: (context, index) {
-            final level = levels[index];
-            final unlocked = widget.profile.isLevelUnlocked(level.id);
-            final stars = widget.profile.starsFor(level.id);
-
-            return GestureDetector(
-              onTap: unlocked
-                  ? () {
-                      Navigator.of(context)
-                          .push(
-                            MaterialPageRoute(
-                              builder: (_) => GameScreen(
-                                settings: widget.settings,
-                                profile: widget.profile,
-                                level: level,
-                              ),
-                            ),
-                          )
-                          .then((_) => setState(() {}));
-                    }
-                  : null,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  color: unlocked ? const Color(0xFF1F1812) : const Color(0xFF14100C),
-                  border: Border.all(
-                    color: unlocked ? Colors.white.withOpacity(0.12) : Colors.white.withOpacity(0.05),
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '${level.id}',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: unlocked ? Colors.white : Colors.white.withOpacity(0.3),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    if (!unlocked)
-                      Icon(Icons.lock, size: 18, color: Colors.white.withOpacity(0.25))
-                    else
-                      _Stars(stars: stars),
-                    const SizedBox(height: 8),
-                    Text(
-                      level.aiTier.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 10,
-                        letterSpacing: 1.1,
-                        color: unlocked ? Colors.white.withOpacity(0.6) : Colors.white.withOpacity(0.2),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
     );
   }
-}
 
-class _Stars extends StatelessWidget {
-  const _Stars({required this.stars});
-  final int stars;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        final filled = i < stars;
-        return Icon(
-          filled ? Icons.star_rounded : Icons.star_border_rounded,
-          color: filled ? const Color(0xFFFFD54F) : Colors.white.withOpacity(0.3),
-          size: 18,
-        );
-      }),
-    );
+  void _startLevel(LevelDefinition level) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GameScreen(
+          settings: widget.settings,
+          profile: widget.profile,
+          level: level,
+        ),
+      ),
+    ).then((_) => setState(() {}));
   }
 }

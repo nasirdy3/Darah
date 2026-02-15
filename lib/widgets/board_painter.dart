@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../skins/skins.dart';
 
@@ -30,144 +31,296 @@ class BoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    final bg = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: skin.baseGradient,
-      ).createShader(rect);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(24)), bg);
+    // Rich wood background with grain effect
+    _drawWoodBackground(canvas, rect);
 
-    final frame = Paint()
-      ..color = skin.frame.withOpacity(0.55)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
-    canvas.drawRRect(RRect.fromRectAndRadius(rect.deflate(6), const Radius.circular(20)), frame);
+    // Beveled frame
+    _drawBeveledFrame(canvas, rect);
 
     final cell = size.width / sizeN;
-    final gridPaint = Paint()
-      ..color = skin.grid.withOpacity(0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
 
-    for (var i = 0; i <= sizeN; i++) {
-      final p = i * cell;
-      canvas.drawLine(Offset(p, 0), Offset(p, size.height), gridPaint);
-      canvas.drawLine(Offset(0, p), Offset(size.width, p), gridPaint);
-    }
+    // Subtle grid lines (wood grain separation)
+    _drawWoodGrain(canvas, size, cell);
 
+    // AI move trail
     if (aiFromCell != null && aiToCell != null) {
-      final from = _cellCenter(aiFromCell!, cell);
-      final to = _cellCenter(aiToCell!, cell);
-      final trail = Paint()
-        ..shader = LinearGradient(
-          colors: [const Color(0xFFB2FF59).withOpacity(0.7), const Color(0xFF4DD0E1).withOpacity(0.7)],
-        ).createShader(Rect.fromPoints(from, to))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = cell * (0.08 + 0.02 * pulse)
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(from, to, trail);
+      _drawAiTrail(canvas, cell);
     }
 
+    // Draw pits (carved indents)
     for (var r = 0; r < sizeN; r++) {
       for (var c = 0; c < sizeN; c++) {
+        final idx = r * sizeN + c;
         final cx = (c + 0.5) * cell;
         final cy = (r + 0.5) * cell;
-        // Make pit square with rounded corners
-        final pitSize = cell * 0.75;
-        final pitRect = Rect.fromCenter(center: Offset(cx, cy), width: pitSize, height: pitSize);
-        final pitRRect = RRect.fromRectAndRadius(pitRect, Radius.circular(cell * 0.12));
-
-        // Inner shadow for depth
-        final shadow = Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.black.withOpacity(0.7), Colors.white.withOpacity(0.1)],
-          ).createShader(pitRect);
         
-        // Draw indent
-        canvas.drawRRect(pitRRect.shift(const Offset(1, 1)), shadow);
-
-        final pit = Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [skin.pitDark, skin.pitLight],
-          ).createShader(pitRect);
-        canvas.drawRRect(pitRRect, pit);
-        
-        // Inner glow/highlight for 3D edge
-         final edge = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..shader = LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.transparent, Colors.white.withOpacity(0.2)],
-            stops: const [0.5, 1.0]
-          ).createShader(pitRect);
-        canvas.drawRRect(pitRRect, edge);
-
-        final idx = r * sizeN + c;
-
-        if (highlightCells.contains(idx)) {
-          final hl = Paint()
-            ..color = (captureMode ? skin.capture : skin.highlight).withOpacity(0.55)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.2;
-          canvas.drawRRect(pitRRect.inflate(4), hl);
-        }
-
-        if (hintCells.contains(idx)) {
-          final hl = Paint()
-            ..color = const Color(0xFF7DD9FF).withOpacity(0.65)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.4;
-          canvas.drawRRect(pitRRect.inflate(6), hl);
-        }
-
-        if (selectedCell == idx) {
-          final sel = Paint()
-            ..color = const Color(0xFFFFD54F).withOpacity(0.6 + 0.2 * pulse)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.2 + (1.4 * pulse);
-          canvas.drawRRect(pitRRect.inflate(8 + 2 * pulse), sel);
-        }
-
-        if (aiFromCell == idx) {
-          final ai = Paint()
-            ..color = const Color(0xFFB2FF59).withOpacity(0.65 + 0.25 * pulse)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.2 + (1.6 * pulse);
-           canvas.drawRRect(pitRRect.inflate(8 + 2 * pulse), ai);
-        }
-
-        if (aiToCell == idx) {
-          final ai = Paint()
-            ..color = const Color(0xFF4DD0E1).withOpacity(0.7 + 0.25 * pulse)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.4 + (1.7 * pulse);
-           canvas.drawRRect(pitRRect.inflate(9 + 2 * pulse), ai);
-        }
-
-        if (aiCaptureCell == idx) {
-          final ai = Paint()
-            ..color = const Color(0xFFFF6F60).withOpacity(0.7 + 0.3 * pulse)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.0 + (2.0 * pulse);
-           canvas.drawRRect(pitRRect.inflate(10 + 2 * pulse), ai);
-        }
+        _drawCarvedPit(canvas, Offset(cx, cy), cell, idx);
       }
     }
 
-    final gloss = Paint()
+    // Highlight cells
+    for (final idx in highlightCells) {
+      final center = _cellCenter(idx, cell);
+      _drawHighlight(canvas, center, cell, const Color(0xFF4DD0E1));
+    }
+
+    // Hint cells
+    for (final idx in hintCells) {
+      final center = _cellCenter(idx, cell);
+      _drawHighlight(canvas, center, cell, const Color(0xFFFFB300));
+    }
+
+    // Selected cell
+    if (selectedCell != null) {
+      final center = _cellCenter(selectedCell!, cell);
+      _drawSelection(canvas, center, cell);
+    }
+
+    // AI capture cell
+    if (aiCaptureCell != null) {
+      final center = _cellCenter(aiCaptureCell!, cell);
+      _drawCaptureGlow(canvas, center, cell, pulse);
+    }
+  }
+
+  void _drawWoodBackground(Canvas canvas, Rect rect) {
+    // Base wood gradient
+    final woodGradient = Paint()
       ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Colors.white.withOpacity(0.12), Colors.transparent],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFF3E2723), // Dark mahogany
+          const Color(0xFF4A3428), // Medium brown
+          const Color(0xFF3E2723), // Dark mahogany
+        ],
+        stops: const [0.0, 0.5, 1.0],
       ).createShader(rect);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(24)), gloss);
+    
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(24)),
+      woodGradient,
+    );
+
+    // Wood grain texture overlay
+    final random = Random(42);
+    final grainPaint = Paint()
+      ..color = Colors.black.withOpacity(0.05)
+      ..strokeWidth = 0.5;
+
+    for (var i = 0; i < 30; i++) {
+      final y = random.nextDouble() * rect.height;
+      final offset = random.nextDouble() * 20 - 10;
+      canvas.drawLine(
+        Offset(0, y + offset),
+        Offset(rect.width, y + offset * 0.5),
+        grainPaint,
+      );
+    }
+  }
+
+  void _drawBeveledFrame(Canvas canvas, Rect rect) {
+    // Outer bevel (highlight)
+    final outerBevel = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFF8D6E63).withOpacity(0.4),
+          Colors.transparent,
+        ],
+      ).createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+    
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect.deflate(2), const Radius.circular(22)),
+      outerBevel,
+    );
+
+    // Inner bevel (shadow)
+    final innerBevel = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.bottomRight,
+        end: Alignment.topLeft,
+        colors: [
+          Colors.black.withOpacity(0.3),
+          Colors.transparent,
+        ],
+      ).createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect.deflate(6), const Radius.circular(20)),
+      innerBevel,
+    );
+  }
+
+  void _drawWoodGrain(Canvas canvas, Size size, double cell) {
+    final grainPaint = Paint()
+      ..color = const Color(0xFF2D1F17).withOpacity(0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
+    for (var i = 0; i <= sizeN; i++) {
+      final p = i * cell;
+      canvas.drawLine(Offset(p, 0), Offset(p, size.height), grainPaint);
+      canvas.drawLine(Offset(0, p), Offset(size.width, p), grainPaint);
+    }
+  }
+
+  void _drawCarvedPit(Canvas canvas, Offset center, double cell, int idx) {
+    final pitSize = cell * 0.72;
+    final pitRect = Rect.fromCenter(center: center, width: pitSize, height: pitSize);
+    final pitRRect = RRect.fromRectAndRadius(pitRect, Radius.circular(pitSize * 0.5));
+
+    // Deep shadow (carved effect)
+    final shadowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.black.withOpacity(0.6),
+          Colors.black.withOpacity(0.3),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.7, 1.0],
+      ).createShader(pitRect);
+    
+    canvas.drawRRect(pitRRect, shadowPaint);
+
+    // Inner pit gradient
+    final pitPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.3, -0.3),
+        radius: 0.8,
+        colors: [
+          const Color(0xFF2D1F17), // Dark center
+          const Color(0xFF3E2723), // Medium edge
+        ],
+      ).createShader(pitRect);
+    
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        pitRect.deflate(2),
+        Radius.circular(pitSize * 0.5),
+      ),
+      pitPaint,
+    );
+
+    // Subtle highlight on edge
+    final highlightPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFF8D6E63).withOpacity(0.2),
+          Colors.transparent,
+        ],
+      ).createShader(pitRect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        pitRect.deflate(1),
+        Radius.circular(pitSize * 0.5),
+      ),
+      highlightPaint,
+    );
+  }
+
+  void _drawAiTrail(Canvas canvas, double cell) {
+    final from = _cellCenter(aiFromCell!, cell);
+    final to = _cellCenter(aiToCell!, cell);
+    
+    final trail = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          const Color(0xFFFFB300).withOpacity(0.6),
+          const Color(0xFFFFD54F).withOpacity(0.6),
+        ],
+      ).createShader(Rect.fromPoints(from, to))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = cell * (0.1 + 0.03 * pulse)
+      ..strokeCap = StrokeCap.round;
+    
+    canvas.drawLine(from, to, trail);
+
+    // Glow effect
+    final glow = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          const Color(0xFFFFB300).withOpacity(0.3),
+          const Color(0xFFFFD54F).withOpacity(0.3),
+        ],
+      ).createShader(Rect.fromPoints(from, to))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = cell * (0.15 + 0.05 * pulse)
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    
+    canvas.drawLine(from, to, glow);
+  }
+
+  void _drawHighlight(Canvas canvas, Offset center, double cell, Color color) {
+    final size = cell * 0.85;
+    final rect = Rect.fromCenter(center: center, width: size, height: size);
+    
+    // Outer glow
+    final glow = Paint()
+      ..color = color.withOpacity(0.2)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+    
+    canvas.drawCircle(center, size * 0.5, glow);
+
+    // Inner ring
+    final ring = Paint()
+      ..color = color.withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    
+    canvas.drawCircle(center, size * 0.4, ring);
+  }
+
+  void _drawSelection(Canvas canvas, Offset center, double cell) {
+    final size = cell * 0.9;
+    
+    // Pulsing glow
+    final glow = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFFFD54F).withOpacity(0.4),
+          const Color(0xFFFFB300).withOpacity(0.2),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCenter(center: center, width: size, height: size))
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+    
+    canvas.drawCircle(center, size * 0.6, glow);
+
+    // Selection ring
+    final ring = Paint()
+      ..color = const Color(0xFFFFD54F)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+    
+    canvas.drawCircle(center, size * 0.45, ring);
+  }
+
+  void _drawCaptureGlow(Canvas canvas, Offset center, double cell, double pulse) {
+    final size = cell * (0.9 + 0.1 * pulse);
+    
+    final glow = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFFF5252).withOpacity(0.6),
+          const Color(0xFFFF1744).withOpacity(0.3),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCenter(center: center, width: size, height: size))
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+    
+    canvas.drawCircle(center, size * 0.5, glow);
   }
 
   Offset _cellCenter(int idx, double cell) {
@@ -177,18 +330,7 @@ class BoardPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant BoardPainter oldDelegate) {
-    return oldDelegate.sizeN != sizeN ||
-        oldDelegate.highlightCells != highlightCells ||
-        oldDelegate.hintCells != hintCells ||
-        oldDelegate.selectedCell != selectedCell ||
-        oldDelegate.captureMode != captureMode ||
-        oldDelegate.skin != skin ||
-        oldDelegate.aiFromCell != aiFromCell ||
-        oldDelegate.aiToCell != aiToCell ||
-        oldDelegate.aiCaptureCell != aiCaptureCell ||
-        oldDelegate.pulse != pulse;
-  }
+  bool shouldRepaint(covariant BoardPainter oldDelegate) => true;
 }
 
 int? hitTestCell({required Offset localPos, required Size boardSize, required int n}) {
@@ -197,15 +339,5 @@ int? hitTestCell({required Offset localPos, required Size boardSize, required in
   final c = (localPos.dx / cell).floor();
   final r = (localPos.dy / cell).floor();
   if (r < 0 || c < 0 || r >= n || c >= n) return null;
-  
-  // Rectangular hit test with small margin
-  final cx = (c + 0.5) * cell;
-  final cy = (r + 0.5) * cell;
-  final dx = (localPos.dx - cx).abs();
-  final dy = (localPos.dy - cy).abs();
-  
-  // Allow hitting almost the entire cell area (90% width/height)
-  if (dx > cell * 0.45 || dy > cell * 0.45) return null;
-  
   return r * n + c;
 }
