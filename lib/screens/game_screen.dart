@@ -24,6 +24,7 @@ import '../widgets/animated_dots.dart';
 import '../widgets/board_painter.dart';
 import '../widgets/confetti.dart';
 import '../widgets/token_widget.dart';
+import 'dart:ui' show ImageFilter;
 
 class GameScreen extends StatefulWidget {
   const GameScreen({
