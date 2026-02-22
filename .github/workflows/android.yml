@@ -25,41 +25,14 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Create clean Flutter Android scaffold
-        run: |
-          flutter --version
-          flutter create -t app --platforms=android dara_ci
-
-      - name: Copy project files into scaffold
-        run: |
-          # Clean scaffold folders we replace
-          rm -rf dara_ci/lib dara_ci/assets
-
-          # Copy source correctly (avoid lib/lib nesting)
-          rsync -a ./lib/ dara_ci/lib/
-          if [ -d "./assets" ]; then rsync -a ./assets/ dara_ci/assets/; fi
-
-          # Copy pubspec as the root file Flutter will use
-          cp -f ./pubspec.yaml dara_ci/pubspec.yaml
-
-          # Optional lock/options
-          if [ -f "./pubspec.lock" ]; then cp -f ./pubspec.lock dara_ci/pubspec.lock; fi
-          if [ -f "./analysis_options.yaml" ]; then cp -f ./analysis_options.yaml dara_ci/analysis_options.yaml; fi
-
-          echo "---- CI pubspec.yaml ----"
-          cat dara_ci/pubspec.yaml
-
-          echo "---- CI lib folder ----"
-          ls -la dara_ci/lib
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Build release APK
-        working-directory: dara_ci
-        run: |
-          flutter pub get
-          flutter build apk --release
+        run: flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: darah-release-apk
-          path: dara_ci/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
